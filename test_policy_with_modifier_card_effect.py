@@ -248,8 +248,8 @@ if __name__ == "__main__":
     print(f"전체 덱 생성 완료: {len(full_deck)}장\n")
     
     # 3. 테스트 설정
-    # 기본 손패: {10, 5} = 15점
-    base_hand = {10, 5}
+    # 기본 손패: {12} = 12점
+    base_hand = {12}
     base_score = sum(base_hand)
     
     # 7가지 수정자 시나리오
@@ -359,7 +359,7 @@ if __name__ == "__main__":
     # 저장
     import os
     os.makedirs('./runs', exist_ok=True)
-    save_path = './runs/policy_analysis_modifier_effect.png'
+    save_path = f'./runs/policy_analysis_modifier_effect_{base_hand}.png'
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     print(f"그래프 저장 완료: {save_path}")
     print("=" * 70)

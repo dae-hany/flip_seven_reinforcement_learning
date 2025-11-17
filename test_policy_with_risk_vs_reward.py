@@ -202,7 +202,7 @@ def get_q_values(agent: DQNAgent, env_state: Dict[str, np.ndarray]) -> tuple:
 # MAIN EXECUTION
 # ============================================================================
 if __name__ == "__main__":
-    
+    total_game_score = 195
     print("=" * 70)
     print("Risk vs. Reward Test: Analyzing Risk Tolerance by Round Score")
     print("=" * 70)
@@ -254,7 +254,7 @@ if __name__ == "__main__":
         round_score = sum(hand)
         
         # 관측 생성 및 Q-values 계산
-        obs = create_obs(hand, [], full_deck, 50)
+        obs = create_obs(hand, [], full_deck, total_game_score)
         q_stay, q_hit = get_q_values(agent, obs)
         
         # 데이터 저장
@@ -294,7 +294,7 @@ if __name__ == "__main__":
     # 그래프 설정
     ax.set_xlabel('Current Round Score', fontsize=14, fontweight='bold')
     ax.set_ylabel('Q-Value', fontsize=14, fontweight='bold')
-    ax.set_title('Risk vs. Reward Analysis: Q-Values vs Current Round Score\n(Total Game Score: 50)', 
+    ax.set_title('Risk vs. Reward Analysis: Q-Values vs Current Round Score\n(Total Game Score: {})'.format(total_game_score), 
                  fontsize=16, fontweight='bold', pad=20)
     ax.legend(loc='upper left', fontsize=12)
     ax.grid(True, alpha=0.3, linestyle='--')
@@ -324,75 +324,8 @@ if __name__ == "__main__":
     
     # 저장
     import os
-    os.makedirs('./runs', exist_ok=True)
-    save_path = './runs/policy_analysis_risk_vs_reward.png'
+    os.makedirs('./runs/policy_analysis_risk_vs_reward', exist_ok=True)
+    save_path = f'./runs/policy_analysis_risk_vs_reward_{total_game_score}.png'
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     print(f"그래프 저장 완료: {save_path}")
-    print("=" * 70)
-    
-    # ========================================================================
-    # 7. 분석 요약
-    # ========================================================================
-    print("\n" + "=" * 70)
-    print("Analysis Summary")
-    print("=" * 70)
-    
-    # Q(Stay) - Q(Hit) 차이 계산
-    q_diff = [q_stay_values[i] - q_hit_values[i] for i in range(len(round_scores))]
-    
-    # 역전 지점 찾기 (Q(Stay)가 Q(Hit)를 처음 넘어서는 지점)
-    crossover_idx = None
-    for i in range(len(q_diff)):
-        if q_diff[i] > 0:
-            crossover_idx = i
-            break
-    
-    # 저점수/고점수 구간 분석
-    low_score_indices = [i for i, s in enumerate(round_scores) if s <= 10]
-    high_score_indices = [i for i, s in enumerate(round_scores) if s >= 25]
-    
-    if low_score_indices:
-        avg_q_diff_low = np.mean([q_diff[i] for i in low_score_indices])
-        low_prefer_hit = sum(1 for i in low_score_indices if q_diff[i] < 0)
-        print(f"저점수 구간 (≤10점):")
-        print(f"  평균 Q(Stay) - Q(Hit): {avg_q_diff_low:.2f}")
-        print(f"  Hit 선호 비율: {low_prefer_hit}/{len(low_score_indices)} "
-              f"({100*low_prefer_hit/len(low_score_indices):.1f}%)")
-    
-    if high_score_indices:
-        avg_q_diff_high = np.mean([q_diff[i] for i in high_score_indices])
-        high_prefer_stay = sum(1 for i in high_score_indices if q_diff[i] > 0)
-        print(f"\n고점수 구간 (≥25점):")
-        print(f"  평균 Q(Stay) - Q(Hit): {avg_q_diff_high:.2f}")
-        print(f"  Stay 선호 비율: {high_prefer_stay}/{len(high_score_indices)} "
-              f"({100*high_prefer_stay/len(high_score_indices):.1f}%)")
-    
-    if crossover_idx is not None:
-        crossover_score = round_scores[crossover_idx]
-        print(f"\n✓ 정책 전환 지점: Round Score = {crossover_score}점")
-        print(f"  이 점수부터 Stay를 선호하기 시작합니다.")
-        
-        # 합리적인 전환인지 평가 (대략 15-30점 사이면 합리적)
-        if 15 <= crossover_score <= 35:
-            print("\n✓ 결론: 에이전트가 위험 대비 보상을 합리적으로 평가하고 있습니다!")
-            print("  낮은 점수에서는 위험을 감수(Hit)하고,")
-            print("  충분한 점수를 확보하면 안전하게 Stay를 선택합니다.")
-        else:
-            print("\n⚠ 주의: 정책 전환 지점이 예상 범위(15-35점)를 벗어났습니다.")
-            if crossover_score < 15:
-                print("  에이전트가 너무 보수적일 수 있습니다.")
-            else:
-                print("  에이전트가 지나치게 공격적일 수 있습니다.")
-    else:
-        # 모든 점수에서 Hit만 선호하거나 Stay만 선호하는 경우
-        if all(d < 0 for d in q_diff):
-            print("✗ 모든 점수에서 Hit를 선호합니다.")
-            print("\n✗ 결론: 에이전트가 과도하게 공격적이며, 위험 관리를 학습하지 못했습니다.")
-        elif all(d > 0 for d in q_diff):
-            print("✗ 모든 점수에서 Stay를 선호합니다.")
-            print("\n✗ 결론: 에이전트가 과도하게 보수적이며, 점수 최대화를 학습하지 못했습니다.")
-        else:
-            print("✗ 명확한 정책 전환 지점을 찾지 못했습니다.")
-            print("\n✗ 결론: 에이전트의 위험 평가 정책이 불명확합니다.")
-    
     print("=" * 70)
