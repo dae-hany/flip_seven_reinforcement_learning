@@ -1,0 +1,122 @@
+#################################################################
+# [CORE GAME] FLIP 7 - RULEBOOK FOR AI AGENT (SOLO PLAY)
+#################################################################
+
+# This document outlines the rules for a "Core Game" solo-play variant of "Flip 7".
+# This version EXCLUDES all Action Cards (Freeze, Flip Three, Second Chance)
+# to focus the RL agent on the core "press-your-luck" mechanic.
+
+# -----------------------------------------------------------
+# 1. CORE OBJECTIVE
+# -----------------------------------------------------------
+# The primary goal is to be the first player (agent) to reach a total score of 200 points.
+# The secondary goal is to achieve this in the minimum number of rounds.
+# This implies the agent's policy should maximize the expected points per round.
+
+# -----------------------------------------------------------
+# 2. DECK COMPOSITION (TOTAL: 85 CARDS)
+# -----------------------------------------------------------
+# The deck composition is FIXED. This is a card-counting game.
+# The agent's state MUST track the remaining cards in the deck and/or the cards in the discard pile.
+
+### 2.1. Number Cards (79 total)
+# The number on the card is its point value.
+# The quantity of each card matches its number (e.g., twelve "12"s).
+* 12x "12"
+* 11x "11"
+* 10x "10"
+* 9x  "9"
+* 8x  "8"
+* 7x  "7"
+* 6x  "6"
+* 5x  "5"
+* 4x  "4"
+* 3x  "3"
+* 2x  "2"
+* 1x  "1"
+* 1x  "0" (The "0" card is a Number Card worth 0 points)
+
+### 2.2. Modifier Cards (6 total)
+# These modify the score *at the end of a round*. They do NOT count as Number Cards.
+* 1x "+2"  (Adds 2 to the sum of Number Cards)
+* 1x "+4"  (Adds 4 to the sum of Number Cards)
+* 1x "+6"  (Adds 6 to the sum of Number Cards)
+* 1x "+8"  (Adds 8 to the sum of Number Cards)
+* 1x "+10" (Adds 10 to the sum of Number Cards)
+* 1x "x2"  (Doubles the sum of Number Cards *only*. Does not double other modifiers.)
+
+# -----------------------------------------------------------
+# 3. CORE GAMEPLAY MECHANICS (SINGLE ROUND)
+# -----------------------------------------------------------
+# A round is one "episode" for the RL agent.
+
+### 3.1. Round State
+# The agent must track its state within the current round:
+#   - `current_numbers`: A list/set of Number Cards drawn this round (e.g., {5, 8, 11}).
+#   - `current_modifiers`: A list of Modifier Cards drawn this round (e.g., {"+4", "x2"}).
+
+### 3.2. Player Actions
+# On each turn, the agent has two possible actions: "Hit" or "Stay".
+
+### 3.3. Action: "Hit" (Draw a card)
+# The agent draws one card from the top of the deck.
+#
+# 1.  **If card is a NUMBER CARD (e.g., "8"):**
+#     * **Check for BUST:** Is this number (e.g., "8") already in `current_numbers`?
+#     * **If YES (BUST):** The agent BUSTS. The round ends immediately. The agent scores 0 points for this round.
+#     * **If NO (SAFE):**
+#         * Add the card to `current_numbers`.
+#         * **Check for "Flip 7":** Does `current_numbers` now contain 7 cards?
+#         * If YES (Flip 7): The round ends immediately. The agent scores (see Section 4) and gets a +15 point bonus.
+#
+# 2.  **If card is a MODIFIER CARD (e.g., "+10", "x2"):**
+#     * Add the card to `current_modifiers`.
+#     * The agent cannot bust on a Modifier Card. The round continues.
+
+### 3.4. Action: "Stay"
+# The agent chooses to end the round and bank its points.
+# The round ends immediately.
+# The agent scores based on the cards in `current_numbers` and `current_modifiers` (see Section 4).
+
+# -----------------------------------------------------------
+# 4. ROUND END & SCORING
+# -----------------------------------------------------------
+# A round ends in one of three ways:
+# 1.  Agent chooses "Stay".
+# 2.  Agent "Busts".
+# 3.  Agent achieves "Flip 7".
+
+### Scoring Calculation:
+# * If "Bust", `round_score = 0`.
+# * Otherwise:
+#     1.  `number_sum =` Sum of all cards in `current_numbers`.
+#     2.  If "x2" is in `current_modifiers`:
+#         `number_sum = number_sum * 2`
+#     3.  `modifier_sum =` Sum of all "+" cards (e.g., "+4", "+10") in `current_modifiers`.
+#     4.  `flip_7_bonus =` 15 (if "Flip 7" was achieved), 0 (otherwise).
+#     5.  `round_score = number_sum + modifier_sum + flip_7_bonus`
+#
+# After calculation, add `round_score` to the agent's `total_score`.
+
+# -----------------------------------------------------------
+# 5. MULTI-ROUND & DECK MANAGEMENT
+# -----------------------------------------------------------
+### 5.1. Starting the Next Round
+# * **CRITICAL:** Do NOT shuffle the deck.
+# * All cards used in the completed round (from `current_numbers` and `current_modifiers`)
+#   are placed in a **discard pile**.
+# * The next round begins using the remaining (smaller) deck.
+# * The agent's state representation *must* account for the contents of the discard pile
+#   (or, inversely, the remaining deck).
+
+### 5.2. Reshuffling
+# * When the draw deck runs out of cards and the agent needs to "Hit":
+# * Take *all* cards from the discard pile.
+# * Shuffle them to form a new, full deck.
+# * [State update]: At this moment, the agent's "card counting" state (discard pile) must be reset.
+
+# -----------------------------------------------------------
+# 6. GAME END CONDITION
+# -----------------------------------------------------------
+# The game (multi-round simulation) ends at the conclusion of any round where the agent's
+# `total_score` is 200 or more.
