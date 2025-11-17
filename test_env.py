@@ -1,94 +1,119 @@
 import gymnasium as gym
 from gymnasium.utils.env_checker import check_env
-# Import the custom environment
-from flip_seven_env import FlipSevenCoreEnv  # 가정: flip_seven_env.py에 클래스가 있음
 import time
+import collections  # <--- 이 줄이 추가되었습니다.
 
-def run_random_agent(env, num_games=1):
+# flip_seven_env.py 파일에서 FlipSevenCoreEnv 클래스를 임포트합니다.
+try:
+    from flip_seven_env import FlipSevenCoreEnv
+except ImportError:
+    print("="*50)
+    print("오류: 'flip_seven_env.py' 파일에서 'FlipSevenCoreEnv' 클래스를 찾을 수 없습니다.")
+    print("두 파일이 같은 디렉토리에 있는지 확인하세요.")
+    print("="*50)
+    exit()
+
+def run_full_game_test(env: gym.Env, num_games: int = 2):
     """
-    Plays a number of full games (to 200 points) with a random agent.
-    A "game" consists of multiple "rounds" (episodes) until the
-    total score reaches 200.
+    환경을 가지고 '무작위 에이전트'로 200점에 도달하는
+    '풀 게임(Full Game)'을 여러 번 실행합니다.
+    
+    이 테스트는 env.reset()이 '라운드'를 리셋하고,
+    '게임' 루프가 'total_score'를 관리하는지 검증합니다.
     """
     
-    # 룰북에 정의된 게임 종료 점수
-    GAME_END_SCORE = 200 
+    GAME_END_SCORE = 200 # 룰북에 명시된 게임 종료 점수
+
+    print(f"\n--- {num_games}회의 풀 게임(200점 도달) 테스트 시작 ---")
 
     for game in range(num_games):
-        print(f"\n--- STARTING GAME {game + 1} ---")
+        print(f"\n=========================================")
+        print(f" 🎲 [ 게임 {game + 1} 시작 ] 🎲")
+        print(f"=========================================")
+        game_start_time = time.time()
         
-        # 1. 게임 시작 시 환경을 "완전 리셋"
-        #    (total_score, deck, discard_pile 모두 초기화)
-        #    env.reset()은 라운드 리셋이므로, 수동으로 리셋합니다.
-        
-        # 'full_reset' 같은 별도 메서드가 없다면 수동 초기화:
+        # --- 1. '게임' 시작 시 수동으로 '전체' 상태 초기화 ---
+        # env.reset()은 '라운드'만 초기화하므로,
+        # '게임'을 새로 시작하기 위해 '전체' 상태를 강제로 리셋합니다.
         env.total_score = 0
-        env.draw_deck = []
+        env.draw_deck = collections.deque() # 이제 'collections'가 정의되었습니다.
         env.discard_pile = []
-        env._initialize_deck() # _initialize_deck이 discard_pile을 채운다고 가정
-        # (만약 _initialize_deck이 self.draw_deck을 채운다면 env.draw_deck = env._initialize_deck() )
+        env._initialize_deck_to_discard() # discard_pile을 85장으로 채움
         
-        obs, info = env.reset(seed=42 + game) # 매 게임 다른 시드
+        # 첫 라운드를 위해 env.reset() 호출
+        # (이때 _shuffle_discard_into_deck()이 호출될 것입니다)
+        obs, info = env.reset(seed=42 + game)
         
         game_total_rounds = 0
-        game_start_time = time.time()
 
-        # 2. total_score가 200점이 될 때까지 라운드(에피소드) 반복
-        while info.get('total_game_score', 0) < GAME_END_SCORE:
+        # --- 2. '게임' 루프 (200점에 도달할 때까지) ---
+        while info.get("total_game_score", 0) < GAME_END_SCORE:
             game_total_rounds += 1
-            print(f"\n--- Game {game+1}, Round {game_total_rounds} ---")
+            print(f"\n--- [ 라운드 {game_total_rounds} | 현재 총 점수: {info.get('total_game_score', 0)} ] ---")
             
-            terminated = False
-            round_steps = 0
-            
-            # 3. 한 라운드(에피소드) 실행
+            terminated = False # '라운드' 종료 플래그
+            round_step_count = 0
+
+            # --- 3. '라운드' 루프 (Bust, Stay, Flip 7 전까지) ---
             while not terminated:
-                # Take a random action
-                action = env.action_space.sample()
+                round_step_count += 1
                 
-                print(f"Step: {round_steps}, Action: {'Stay' if action == 0 else 'Hit'}")
+                # 무작위 행동 선택 (0: Stay, 1: Hit)
+                action = env.action_space.sample() 
+                
+                print(f"  (스텝 {round_step_count:02d}) 행동: {'STAY' if action == 0 else 'HIT'}", end=" | ")
                 
                 obs, reward, terminated, truncated, info = env.step(action)
                 
-                env.render()
-                print(f"Reward: {reward}")
-                print(f"Terminated: {terminated}")
+                # '인간' 모드로 렌더링 (현재 손패, 덱 상태 등 출력)
+                # env.render() # 너무 길면 주석 처리
                 
-                round_steps += 1
-                if round_steps > 30: # 안전 브레이크 (수정카드를 모두 뽑는 등)
-                    print("Warning: Round exceeded 30 steps, breaking.")
-                    break
+                print(f"손패: {sorted(list(env.current_numbers_in_hand))}", end=" | ")
+                print(f"수정: {env.current_modifiers_in_hand}")
+
+                if terminated:
+                    print(f"  >>> 라운드 종료! <<<")
+                    if reward == 0:
+                        print(f"  결과: BUST! 💥")
+                    else:
+                        print(f"  결과: 점수 획득! 💰 (이번 라운드 보상: {reward})")
             
-            print(f"End of Round. Final Reward: {reward}")
-            print(f"Total Game Score: {info.get('total_game_score')}")
-            
-            # 다음 라운드를 위해 reset() 호출
-            if info.get('total_game_score', 0) < GAME_END_SCORE:
+            # --- 라운드 종료 후 다음 라운드 준비 ---
+            if info.get("total_game_score", 0) < GAME_END_SCORE:
+                # 다음 라운드를 위해 reset() 호출 (손패만 비워짐)
                 obs, info = env.reset()
 
+        # --- 게임 종료 ---
         game_end_time = time.time()
-        print(f"\n--- GAME {game + 1} FINISHED ---")
-        print(f"Total rounds to reach {GAME_END_SCORE} points: {game_total_rounds}")
-        print(f"Final Score: {info.get('total_game_score')}")
-        print(f"Time taken: {game_end_time - game_start_time:.2f} seconds")
+        print(f"\n=========================================")
+        print(f" 🏆 [ 게임 {game + 1} 종료! ] 🏆")
+        print(f"  - 최종 점수: {info.get('total_game_score', 0)} 점")
+        print(f"  - 200점 도달까지 걸린 라운드: {game_total_rounds} 라운드")
+        print(f"  - 소요 시간: {game_end_time - game_start_time:.2f} 초")
+        print(f"=========================================")
 
 
 if __name__ == "__main__":
-    # 1. Create the environment
-    env = FlipSevenCoreEnv()
+    
+    print("1. FlipSevenCoreEnv 환경 인스턴스 생성 중...")
+    try:
+        env = FlipSevenCoreEnv()
+        print("   [성공] 환경이 성공적으로 생성되었습니다.")
+    except Exception as e:
+        print(f"  [실패] 환경 생성 중 오류 발생: {e}")
+        exit()
 
-    # 2. Check the environment with Gymnasium's checker
-    print("Running Gymnasium Environment Checker...")
+    # 2. Gymnasium 표준 환경 검사 (API 준수 여부)
+    print("\n2. Gymnasium 환경 검사기(check_env) 실행 중...")
     passed_check = False
     try:
-        check_env(env) # env.unwrapped는 래퍼가 있을 때 사용, 기본은 env
-        print("Success! Environment passed the check.")
+        check_env(env)
+        print("   [성공] ⭐️ Gymnasium API 규격을 완벽하게 준수합니다! ⭐️")
         passed_check = True
     except Exception as e:
-        print("ERROR: Environment failed the check.")
-        print(e)
+        print(f"  [실패] 환경 검사 실패. 오류: {e}")
+        print("       환경 코드에 수정이 필요할 수 있습니다.")
 
-    # 3. Run the random agent test *only if* the check passed
+    # 3. 환경 검사를 통과한 경우에만 무작위 에이전트 테스트 실행
     if passed_check:
-        print("\nRunning random agent test (Full Game Simulation)...")
-        run_random_agent(env, num_games=2) # 200점 도달 게임 2회 실행
+        run_full_game_test(env, num_games=2)
