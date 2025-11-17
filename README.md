@@ -1,46 +1,121 @@
-# Flip 7 - DQN 강화학습 에이전트
+# Flip 7 - DQN 강화학습 프로젝트
 
-카드 게임 "Flip 7"의 솔로 플레이 "Core Game" 변형을 마스터하기 위한 Deep Q-Network (DQN) 구현입니다. 이 프로젝트는 심층 강화학습이 카드 카운팅, 위험 관리, 목표 지향적 행동을 포함한 복잡한 의사결정을 어떻게 학습하는지 보여줍니다.
+카드 게임 "Flip 7"의 솔로 플레이 "Core Game" 변형을 마스터하기 위한 Deep Q-Network (DQN) 구현입니다. 이 프로젝트는 심층 강화학습이 카드 카운팅, 위험 관리, 목표 지향적 의사결정을 어떻게 학습하는지 보여줍니다.
 
 ---
 
 ## 📋 목차
 
-1. [프로젝트 개요](#프로젝트-개요)
-2. [파일 구조](#파일-구조)
-3. [게임 규칙 요약](#게임-규칙-요약)
-4. [설치 및 의존성](#설치-및-의존성)
-5. [사용 방법](#사용-방법)
-6. [환경 세부사항](#환경-세부사항)
-7. [DQN 아키텍처](#dqn-아키텍처)
-8. [학습 결과](#학습-결과)
-9. [정책 분석](#정책-분석)
-10. [비판적 분석](#비판적-분석)
-11. [향후 개선사항](#향후-개선사항)
+1. [프로젝트 개요](#-프로젝트-개요)
+2. [게임 규칙](#-게임-규칙)
+3. [설치 및 실행](#-설치-및-실행)
+4. [파일 구조](#-파일-구조)
+5. [사용 방법](#-사용-방법)
+6. [환경 세부사항](#-환경-세부사항)
+7. [DQN 아키텍처](#-dqn-아키텍처)
+8. [정책 분석 도구](#-정책-분석-도구)
 
 ---
 
 ## 🎯 프로젝트 개요
 
 ### 목표
-이 프로젝트는 **최소 라운드 수**로 **200점**에 도달하는 것이 목표인 프레스-유어-럭(press-your-luck) 카드 게임 Flip 7의 "Core Game" 변형을 마스터하기 위한 Deep Q-Network (DQN) 에이전트를 구현합니다.
+**최소 라운드 수**로 **200점**에 도달하는 것을 목표로 하는 프레스-유어-럭(press-your-luck) 카드 게임 "Flip 7"의 Core Game 변형을 위한 DQN 에이전트를 학습시킵니다.
 
 ### 주요 특징
-- **커스텀 Gymnasium 환경**: `gymnasium.Env` API와 완전히 호환
-- **Dict 관측 공간**: 덱 구성을 추적하여 카드 카운팅 가능
-- **멀티 라운드 게임 구조**: "라운드"(에피소드)와 "게임"(라운드의 시리즈)을 구분
-- **종합적인 분석 도구**: 학습 시각화, 정책 진화 추적, 시나리오 기반 테스트
+- ✅ **커스텀 Gymnasium 환경**: `gymnasium.Env` API와 완전 호환
+- ✅ **Dict 관측 공간**: 덱 구성 추적을 통한 카드 카운팅 지원
+- ✅ **멀티 라운드 게임 구조**: 라운드(에피소드)와 게임(전체 매치) 구분
+- ✅ **종합 분석 도구**: 학습 곡선 시각화 및 정책 평가 스크립트
 
-### 환경
-게임 로직은 `flip_seven_env.py`에 `FlipSevenCoreEnv`라는 커스텀 `gymnasium.Env`로 구현되어 있습니다.
+---
 
-### 규칙 출처
-에이전트는 `[core_game]flip_seven_rulebook_for_ai_agent.txt`에 명시된 규칙을 기반으로 학습됩니다. 룰북에는 다음이 정의되어 있습니다:
-- **85장 덱** (숫자 카드 79장 + 수정자 카드 6장)
-- **프레스-유어-럭 메커니즘** (Hit 또는 Stay)
-- **버스트 조건** (중복된 숫자 뽑기)
-- **Flip 7 보너스** (7개의 고유 숫자 수집 시 +15점)
-- **카드 카운팅** (라운드 간 덱이 재섞이지 않음)
+## 🎮 게임 규칙
+
+### 핵심 메커니즘
+게임 규칙은 `[core_game]flip_seven_rulebook_for_ai_agent.txt`에 상세히 정의되어 있습니다.
+
+**목표**: 총점 200점 도달 (최소 라운드 수)
+
+**덱 구성** (총 85장):
+- 숫자 카드 79장: "1"×1, "2"×2, ..., "12"×12, "0"×1
+- 수정자 카드 6장: +2, +4, +6, +8, +10, x2
+
+**라운드 진행**:
+1. 각 턴마다 **Hit**(카드 뽑기) 또는 **Stay**(라운드 종료) 선택
+2. **Bust 조건**: 손패에 이미 있는 숫자 카드를 뽑으면 0점으로 라운드 종료
+3. **Flip 7 보너스**: 7개의 서로 다른 숫자 카드를 모으면 +15점 보너스 후 자동 종료
+
+**점수 계산**:
+```
+라운드 점수 = (숫자 카드 합 × x2배수) + 수정자 보너스 + Flip 7 보너스
+```
+
+**카드 카운팅**: 덱은 라운드 간 재섞이지 않으며, 버림 더미가 비었을 때만 재섞임
+
+---
+
+## 🚀 설치 및 실행
+
+### 필수 요구사항
+```bash
+Python 3.8+
+PyTorch 2.0+
+Gymnasium
+NumPy
+Matplotlib
+Pandas
+```
+
+### 설치
+```bash
+# 저장소 클론
+git clone https://github.com/dae-hany/flip_seven_reinforcement_learning.git
+cd flip_seven_reinforcement_learning
+
+# 의존성 설치
+pip install torch gymnasium numpy matplotlib pandas
+```
+
+### 빠른 시작
+
+#### 1. 환경 테스트
+```bash
+python test_env.py
+```
+
+#### 2. DQN 에이전트 학습
+```bash
+python train_dqn.py
+```
+- 학습된 모델: `./runs/dqn_flip7_final.pth`
+- 학습 곡선: `./runs/training_history_plot.png`
+
+#### 3. 에이전트 평가
+```bash
+python evaluate_dqn.py
+```
+
+#### 4. 정책 분석
+```bash
+# 기본 시나리오 테스트
+python test_policy_scenarios.py
+
+# 카드 카운팅 학습 검증
+python test_policy_with_card_counting_test.py
+
+# 목표 인식 분석
+python test_policy_with_goal_awareness_test.py
+
+# 위험 대비 보상 평가
+python test_policy_with_risk_vs_reward.py
+
+# 수정자 카드 효과 분석
+python test_policy_with_modifier_card_effect.py
+
+# 고위험 카드 카운팅 시나리오
+python test_policy_with_card_counting_risky.py
+```
 
 ---
 
@@ -48,196 +123,367 @@
 
 ```
 flip_seven_reinforcement_learning/
-├── flip_seven_env.py                 # FlipSevenCoreEnv implementation
-├── train_dqn.py                      # DQN training script with visualization
-├── evaluate_dqn.py                   # Policy evolution analysis across checkpoints
-├── test_policy_scenarios.py          # Qualitative Q-value analysis
-├── test_env.py                       # Environment testing with random agent
-├── [core_game]flip_seven_rulebook_for_ai_agent.txt  # Game rules
-├── runs/                             # Training outputs
-│   ├── dqn_flip7_final.pth          # Final trained model
-│   ├── dqn_flip7_game_100.pth       # Checkpoint at game 100
-│   ├── dqn_flip7_game_200.pth       # Checkpoint at game 200
-│   ├── ...                          # More checkpoints
-│   ├── training_history_plot.png    # Loss and rounds over training
-│   ├── training_history_data.csv    # Raw training metrics
-│   ├── policy_evolution_plot.png    # Performance across checkpoints
-│   └── policy_evolution_data.csv    # Checkpoint evaluation results
-└── README.md                         # This file
+├── [core_game]flip_seven_rulebook_for_ai_agent.txt  # 게임 규칙 정의
+│
+├── flip_seven_env.py                      # Gymnasium 환경 구현
+├── flip_seven_env_considering_end_bonus.py # 종료 보너스 포함 환경 (실험적)
+│
+├── train_dqn.py                           # DQN 학습 스크립트
+├── evaluate_dqn.py                        # 체크포인트 간 정책 진화 분석
+├── test_env.py                            # 환경 테스트 (랜덤 에이전트)
+│
+├── test_policy_scenarios.py               # 기본 정책 시나리오 테스트
+├── test_policy_with_card_counting_test.py # 카드 카운팅 학습 검증 (전체 카드)
+├── test_policy_with_card_counting_risky.py # 고위험 카드 카운팅 시나리오
+├── test_policy_with_goal_awareness_test.py # 200점 목표 인식 분석
+├── test_policy_with_risk_vs_reward.py     # 위험 대비 보상 평가
+├── test_policy_with_modifier_card_effect.py # 수정자 카드 효과 분석
+│
+├── runs/                                  # 학습 결과물
+│   ├── dqn_flip7_final.pth               # 최종 학습 모델
+│   ├── dqn_flip7_game_*.pth              # 체크포인트 모델들
+│   ├── training_history_plot.png         # 학습 곡선
+│   ├── training_history_data.csv         # 학습 메트릭 데이터
+│   ├── policy_evolution_plot.png         # 정책 진화 그래프
+│   ├── policy_evolution_data.csv         # 체크포인트 평가 데이터
+│   ├── policy_analysis_card_counting.png # 카드 카운팅 분석 결과
+│   ├── policy_analysis_goal_awareness.png # 목표 인식 분석 결과
+│   ├── policy_analysis_risk_vs_reward.png # 위험-보상 분석 결과
+│   ├── policy_analysis_modifier_effect.png # 수정자 효과 분석 결과
+│   └── policy_analysis_high_risk_counting.png # 고위험 시나리오 분석
+│
+└── README.md                              # 이 파일
 ```
 
 ### 주요 파일 설명
 
+#### 환경 파일
 - **`flip_seven_env.py`**: 
-  - 전체 게임 로직을 포함한 `FlipSevenCoreEnv` 구현
-  - 관측 공간으로 `gym.spaces.Dict` 사용 (카드 카운팅 가능)
+  - 전체 게임 로직을 구현한 `FlipSevenCoreEnv` 클래스
+  - `gym.spaces.Dict` 관측 공간으로 카드 카운팅 지원
   - 덱 관리, 점수 계산, 멀티 라운드 구조 처리
-  - 상태 포함 항목: 손패 카드, 수정자, 덱 구성, 총점
+  - 상태 포함: 손패 숫자 카드, 수정자 카드, 덱 구성, 총점
 
+- **`flip_seven_env_considering_end_bonus.py`**:
+  - 게임 종료 시 보너스를 포함한 실험적 환경 변형
+
+#### 학습 및 평가 파일
 - **`train_dqn.py`**: 
-  - `QNetwork` 포함 (Dict 관측을 위한 다중 분기 신경망)
-  - 경험 재생 및 타겟 네트워크를 갖춘 `DQNAgent`
-  - Game/Round 구분이 있는 메인 학습 루프
-  - 학습 히스토리 플롯 및 CSV 데이터 자동 생성
+  - DQN 에이전트 학습 메인 스크립트
+  - `QNetwork`: Dict 관측 공간을 위한 다중 분기 신경망 구조
+  - `DQNAgent`: 경험 재생 버퍼, 타겟 네트워크, ε-greedy 정책 포함
+  - 학습 곡선 및 메트릭 자동 저장
 
 - **`evaluate_dqn.py`**: 
-  - `./runs/`에서 모든 모델 체크포인트 로드
-  - 각 체크포인트를 50게임에 걸쳐 평가
-  - 학습 진행을 보여주는 정책 진화 플롯 생성
-
-- **`test_policy_scenarios.py`**: 
-  - 학습된 Q-values의 정성적 분석
-  - 4가지 주요 시나리오 테스트: 카드 카운팅, 목표 인식, 위험 관리, 수정자 효과
-  - 에이전트 행동을 조사하기 위해 게임 상태를 수동으로 구성
+  - 체크포인트 모델들의 성능 평가
+  - 정책 진화 과정 시각화
+  - 50게임 평균 성능 측정
 
 - **`test_env.py`**: 
-  - 간단한 환경 검증 스크립트
-  - 환경 정확성을 검증하기 위해 랜덤 에이전트로 전체 게임 실행
+  - 환경 동작 검증 스크립트
+  - 랜덤 에이전트로 전체 게임 실행
+
+#### 정책 분석 파일
+- **`test_policy_scenarios.py`**: 
+  - 기본 정책 시나리오 테스트
+  - 카드 카운팅, 목표 인식, 위험 관리, 수정자 효과 검증
+
+- **`test_policy_with_card_counting_test.py`**:
+  - 모든 숫자 카드(0-12)에 대한 카드 카운팅 학습 검증
+  - 덱 상태별 Q-value 비교 시각화
+
+- **`test_policy_with_card_counting_risky.py`**:
+  - 고위험 손패({12,11,10,7})로 카드 카운팅 심층 분석
+  - Bust 위험 상황에서의 정책 변화 관찰
+
+- **`test_policy_with_goal_awareness_test.py`**:
+  - 200점 목표 인식 여부 검증
+  - total_game_score 변화에 따른 Q-value 추이 분석
+
+- **`test_policy_with_risk_vs_reward.py`**:
+  - 라운드 점수별 위험 감수 성향 분석
+  - 정책 전환 지점(crossover point) 탐지
+
+- **`test_policy_with_modifier_card_effect.py`**:
+  - 6종 수정자 카드의 영향력 분석
+  - 점수 증가에 따른 Q-value 변화 측정
 
 ---
 
-## 🎲 게임 규칙 요약
+## 🎮 사용 방법
 
-### 목표
-최소 라운드 수로 **총 200점**에 먼저 도달하기.
-
-### 덱 구성 (85장)
-- **숫자 카드 (79장)**: `12×"12"`, `11×"11"`, ..., `2×"2"`, `1×"1"`, `1×"0"`
-- **수정자 카드 (6장)**: `+2`, `+4`, `+6`, `+8`, `+10`, `x2`
-
-### 게임플레이 (라운드당)
-1. **행동**: `Hit` (카드 뽑기) 또는 `Stay` (라운드 종료 및 점수 저장)
-2. **버스트**: 이미 가지고 있는 숫자를 뽑으면 → 해당 라운드 0점
-3. **Flip 7**: 7개의 고유 숫자 수집 → +15 보너스 점수
-4. **수정자**: 버스트를 유발하지 않음; `x2`는 숫자 합계만 2배로
-
-### 점수 계산
-```
-round_score = (number_sum × x2_multiplier) + modifier_sum + flip_7_bonus
-```
-- 버스트 시: `round_score = 0`
-- 각 라운드 후: `total_score += round_score`
-
-### 핵심 규칙: 카드 카운팅
-- 라운드 간 **버린 카드 더미가 섞이지 않음**
-- 덱은 게임플레이 중 비어있을 때만 재섞임
-- 에이전트는 최적의 결정을 위해 남은 카드를 추적해야 함
-
----
-
-## 🛠 설치 및 의존성
-
-### 필요 패키지
-
-```txt
-torch>=2.0.0
-gymnasium>=0.29.0
-numpy>=1.24.0
-matplotlib>=3.7.0
-pandas>=2.0.0
-collections-extended>=2.0.0
+### 1. 환경 테스트
+먼저 환경이 정상 동작하는지 확인합니다:
+```bash
+python test_env.py
 ```
 
-### 설치
-
-1. **저장소 클론**:
-   ```bash
-   git clone https://github.com/dae-hany/flip_seven_reinforcement_learning.git
-   cd flip_seven_reinforcement_learning
-   ```
-
-2. **가상 환경 생성** (권장):
-   ```bash
-   conda create -n flip7_rl python=3.10
-   conda activate flip7_rl
-   ```
-
-3. **의존성 설치**:
-   ```bash
-   pip install torch gymnasium numpy matplotlib pandas
-   ```
-
-4. **환경 검증**:
-   ```bash
-   python test_env.py
-   ```
-
----
-
-## 🚀 사용 방법
-
-### a. 새 에이전트 학습
-
-처음부터 학습을 시작하려면:
-
+### 2. DQN 에이전트 학습
 ```bash
 python train_dqn.py
 ```
 
-**학습 파라미터** (`train_dqn.py`에서 설정 가능):
-- `NUM_TOTAL_GAMES_TO_TRAIN = 1000`
-- `BATCH_SIZE = 64`
-- `LEARNING_RATE = 1e-4`
-- `GAMMA = 0.99`
-- `EPSILON_START = 1.0`, `EPSILON_END = 0.01`, `EPSILON_DECAY = 0.995`
-- `TARGET_UPDATE_FREQUENCY = 10` (게임)
+**학습 하이퍼파라미터** (코드 내 수정 가능):
+- 총 학습 게임 수: 1000
+- 배치 크기: 64
+- 학습률: 1e-4
+- 할인율 (γ): 0.99
+- ε-greedy: 1.0 → 0.01 (decay=0.995)
+- 리플레이 버퍼 크기: 50,000
+- 타겟 네트워크 업데이트: 매 10게임
 
 **출력물**:
-- 100게임마다 `./runs/`에 모델 체크포인트 저장
-- 최종 모델: `./runs/dqn_flip7_final.pth`
-- 학습 플롯: `./runs/training_history_plot.png`
-- 학습 데이터: `./runs/training_history_data.csv`
+- `./runs/dqn_flip7_final.pth`: 최종 모델
+- `./runs/dqn_flip7_game_*.pth`: 체크포인트 모델 (매 100게임)
+- `./runs/training_history_plot.png`: 학습 곡선
+- `./runs/training_history_data.csv`: 학습 메트릭
 
-**예상 학습 시간**: CPU에서 약 2-4시간, GPU에서 약 30-60분 (1000게임 기준)
-
-### b. 학습된 에이전트 평가
-
-최종 학습된 모델을 평가하려면:
-
+### 3. 에이전트 평가
 ```bash
 python evaluate_dqn.py
 ```
 
-이 스크립트는:
-1. `./runs/`에서 모든 체크포인트 로드
-2. 각 체크포인트를 50게임에 걸쳐 평가
-3. `./runs/policy_evolution_plot.png` 생성
-4. 평가 데이터를 `./runs/policy_evolution_data.csv`에 저장
+체크포인트별 성능 비교:
+- 각 모델을 50게임 평가
+- 평균 라운드 수 및 최종 점수 측정
+- 정책 진화 그래프 생성
 
-**샘플 출력**:
-```
-Evaluating checkpoint: dqn_flip7_game_100.pth...
-  ✓ 완료: 평균 15.32 라운드
+### 4. 정책 심층 분석
 
-Evaluating checkpoint: dqn_flip7_game_200.pth...
-  ✓ 완료: 평균 12.84 라운드
+각 분석 스크립트는 독립적으로 실행 가능하며, 시각화 결과를 `./runs/` 디렉토리에 저장합니다.
 
-...
+#### 카드 카운팅 검증
+```bash
+# 모든 숫자 카드(0-12) 테스트
+python test_policy_with_card_counting_test.py
 
-Evaluating checkpoint: Final Model...
-  ✓ 완료: 평균 8.76 라운드
+# 고위험 시나리오 테스트
+python test_policy_with_card_counting_risky.py
 ```
 
-### c. 정책 시나리오 테스트
+#### 목표 및 위험 관리 분석
+```bash
+# 200점 목표 인식
+python test_policy_with_goal_awareness_test.py
 
-학습된 정책의 정성적 분석을 수행하려면:
+# 위험 대비 보상 평가
+python test_policy_with_risk_vs_reward.py
+```
 
+#### 수정자 카드 효과
+```bash
+python test_policy_with_modifier_card_effect.py
+```
+
+#### 기본 시나리오 테스트
 ```bash
 python test_policy_scenarios.py
 ```
 
-이 스크립트는 4가지 주요 시나리오에서 에이전트의 Q-values를 테스트합니다:
-1. **카드 카운팅**: 버스트 불가능할 때 에이전트가 "Hit"을 선호하는가?
-2. **목표 인식**: 200점에 가까울 때 에이전트가 "Stay"를 선호하는가?
-3. **위험 대 보상**: 에이전트가 현재 점수에 따라 위험을 관리하는가?
-4. **수정자 효과**: 에이전트가 `x2` 수정자를 가진 손패를 더 높게 평가하는가?
+---
 
-**샘플 출력**:
+## 🏗 환경 세부사항
+
+### FlipSevenCoreEnv
+
+#### 관측 공간 (`gym.spaces.Dict`)
+```python
+{
+    "current_hand_numbers": MultiBinary(13),      # 손패의 숫자 카드 (0-12)
+    "current_hand_modifiers": MultiBinary(6),     # 손패의 수정자 카드 (6종)
+    "deck_composition": Box(0, 12, (19,), int),   # 덱 내 각 카드 개수
+    "total_game_score": Box(0, inf, (1,), int)    # 현재 총점
+}
 ```
-📊 Scenario 1: Card Counting (카드 카운팅 학습 여부)
-  [Case A] 덱에 '8'이 남아있음 (Bust 위험 있음)
-    Q(Stay):   12.34 | Q(Hit):   10.21
-    → 선택: Stay (Q-value 차이: 2.13)
+
+**카드 카운팅 지원**:
+- `deck_composition`은 덱에 남은 19종 카드의 개수를 추적
+- 에이전트가 Bust 위험도를 계산하고 최적 전략 수립 가능
+
+#### 행동 공간 (`gym.spaces.Discrete(2)`)
+- **0 = Stay**: 라운드 종료, 현재 점수 획득
+- **1 = Hit**: 카드 1장 뽑기
+
+#### 보상 구조
+- **Stay 선택**: `reward = round_score` (현재 라운드 점수)
+- **Hit 후 Bust**: `reward = 0`
+- **Hit 후 Flip 7**: `reward = round_score` (자동 종료)
+- **Hit 후 계속**: `reward = 0` (라운드 진행 중)
+
+#### 종료 조건
+라운드(에피소드)는 다음 중 하나일 때 종료:
+- Stay 선택
+- Bust 발생 (중복 숫자 뽑기)
+- Flip 7 달성 (7개 고유 숫자)
+
+게임은 `total_game_score >= 200`일 때 완료되지만, 환경은 게임 레벨을 관리하지 않습니다. (학습 루프에서 처리)
+
+---
+
+## 🧠 DQN 아키텍처
+
+### QNetwork 구조
+
+Dict 관측 공간을 처리하기 위한 **다중 분기(Multi-branch) 신경망**:
+
+```
+관측 입력:
+├─ current_hand_numbers (13) ──→ Linear(13→32) + ReLU
+├─ current_hand_modifiers (6) ──→ Linear(6→16) + ReLU
+├─ deck_composition (19) ────────→ Linear(19→64) + ReLU
+└─ total_game_score (1) ─────────→ Linear(1→8) + ReLU
+
+결합 (120차원) ──→ Linear(120→128) + ReLU
+                 └→ Linear(128→128) + ReLU
+                    └→ Linear(128→2)  [Q(Stay), Q(Hit)]
+```
+
+**특징**:
+- 각 관측 구성요소를 독립적으로 처리
+- 분리된 특징 추출 후 결합하여 최종 Q-value 계산
+- 총 파라미터 수: ~20,000개 (경량 네트워크)
+
+### DQNAgent 구성요소
+
+1. **경험 재생 버퍼** (Replay Buffer)
+   - 용량: 50,000 transitions
+   - 배치 샘플링으로 상관관계 제거
+
+2. **타겟 네트워크** (Target Network)
+   - 매 10게임마다 업데이트
+   - 학습 안정성 향상
+
+3. **ε-Greedy 정책**
+   - 초기: ε = 1.0 (완전 탐험)
+   - 최종: ε = 0.01 (거의 활용)
+   - 감소율: 0.995/게임
+
+4. **손실 함수**
+   - MSE Loss: `(Q(s,a) - [r + γ·max Q(s',a')]²`
+   - 옵티마이저: Adam (lr=1e-4)
+   - 그래디언트 클리핑: max_norm=10.0
+
+---
+
+## 📊 정책 분석 도구
+
+프로젝트에는 6개의 정책 분석 스크립트가 포함되어 있으며, 각각 학습된 에이전트의 특정 능력을 검증합니다.
+
+### 1. 기본 시나리오 테스트
+**파일**: `test_policy_scenarios.py`
+
+4가지 핵심 시나리오 테스트:
+- 카드 카운팅 (덱 상태별 Q-value 차이)
+- 목표 인식 (200점 근접 시 행동 변화)
+- 위험 vs 보상 (점수별 위험 감수 성향)
+- 수정자 효과 (수정자 카드의 영향)
+
+### 2. 카드 카운팅 전체 검증
+**파일**: `test_policy_with_card_counting_test.py`
+
+- 모든 숫자 카드(0-12) 개별 테스트
+- 각 카드에 대해 "덱에 있음" vs "덱에 없음" Q-value 비교
+- 시각화: `policy_analysis_card_counting.png`
+
+### 3. 고위험 카드 카운팅
+**파일**: `test_policy_with_card_counting_risky.py`
+
+- 고가치 손패({12,11,10,7}, 40점) 사용
+- Bust 위험이 높은 상황에서의 정책 변화 관찰
+- 시각화: `policy_analysis_high_risk_counting.png`
+
+### 4. 목표 인식 분석
+**파일**: `test_policy_with_goal_awareness_test.py`
+
+- 고정 손패(22점)로 total_game_score 0~200 변화
+- 200점 목표 근접 시 Stay 선호도 증가 확인
+- 시각화: `policy_analysis_goal_awareness.png`
+
+### 5. 위험 대비 보상 평가
+**파일**: `test_policy_with_risk_vs_reward.py`
+
+- 12개 손패 시나리오 (3점~47점)
+- 점수별 Hit vs Stay 선택 경향 분석
+- 정책 전환 지점(crossover point) 탐지
+- 시각화: `policy_analysis_risk_vs_reward.png`
+
+### 6. 수정자 카드 효과 분석
+**파일**: `test_policy_with_modifier_card_effect.py`
+
+- 기본 손패({10,5})에 7가지 수정자 조합 테스트
+- 수정자별 Q-value 변화 측정
+- x2 카드의 2배 효과 인식 검증
+- 시각화: `policy_analysis_modifier_effect.png`
+
+---
+
+## 🎓 핵심 개념
+
+### 카드 카운팅이 중요한 이유
+
+Flip 7은 **완전 정보 게임**이 아니지만, **관측 가능한 상태**입니다:
+- 버린 카드는 라운드 간 재섞이지 않음
+- 에이전트가 `deck_composition`을 통해 남은 카드 추적 가능
+- 최적 정책은 Bust 확률을 계산하여 Hit/Stay 결정
+
+**예시**:
+- 손패에 "12"가 있고 덱에 "12"가 11장 남음 → Hit 위험 높음
+- 손패에 "12"가 있지만 덱에 "12"가 0장 → Hit 안전
+
+### 멀티 라운드 게임 구조
+
+**라운드** (에피소드):
+- 하나의 `reset()` ~ `terminated=True` 주기
+- 단일 점수 획득 기회
+
+**게임** (전체 매치):
+- 200점 도달까지의 여러 라운드
+- 학습 루프에서 수동 관리
+- `total_score`와 덱 상태는 라운드 간 유지
+
+이 구조는 **시간적 신용 할당 문제**를 단순화합니다:
+- 각 라운드의 보상이 즉시 제공됨
+- 장기적 전략 학습은 `total_game_score`를 통해 암묵적으로 처리
+
+### 보상 구조의 특징
+
+보상은 **희소(sparse)** 하지만 **즉각적(immediate)** 입니다:
+- Hit 중에는 보상 0 (라운드 진행 중)
+- Stay/Bust/Flip7 시점에만 보상 발생
+- 이는 에이전트가 라운드 내 최적 타이밍을 학습하도록 유도
+
+---
+
+## 💡 향후 개선 방향
+
+### 알고리즘 개선
+- [ ] **Double DQN**: 과대평가 편향 감소
+- [ ] **Dueling DQN**: 상태 가치와 행동 이점 분리
+- [ ] **Prioritized Experience Replay**: 중요한 전이에 우선순위 부여
+- [ ] **Rainbow DQN**: 여러 개선 기법 통합
+
+### 환경 확장
+- [ ] Action 카드 추가 (Freeze, Flip Three, Second Chance)
+- [ ] 멀티 플레이어 지원
+- [ ] 다양한 점수 목표 및 덱 구성 실험
+
+### 분석 도구 확장
+- [ ] 실시간 학습 모니터링 대시보드
+- [ ] Q-value 히트맵 시각화
+- [ ] 정책 네트워크 해석 가능성 분석
+- [ ] 인간 플레이어와의 비교 벤치마크
+
+---
+
+## 📝 라이선스
+
+이 프로젝트는 MIT 라이선스 하에 배포됩니다.
+
+---
+
+## 🙏 감사의 말
+
+이 프로젝트는 강화학습의 교육적 목적으로 개발되었습니다. Flip 7 게임 메커니즘은 카드 카운팅과 위험 관리를 결합한 흥미로운 학습 환경을 제공합니다.
 
   [Case B] 덱에 '8'이 전혀 없음 (Bust 불가능)
     Q(Stay):   12.34 | Q(Hit):   18.67
