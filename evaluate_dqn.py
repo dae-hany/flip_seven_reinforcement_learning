@@ -13,6 +13,11 @@ import random
 from typing import Dict, Tuple, Any
 import gymnasium as gym
 import time
+import os
+import glob
+import pandas as pd
+import matplotlib.pyplot as plt
+import re
 
 # 'flip_seven_env.py' 파일에서 환경 클래스를 임포트합니다.
 try:
@@ -27,8 +32,6 @@ except ImportError:
 # ============================================================================
 # 평가 설정
 # ============================================================================
-NUM_EVAL_GAMES = 100  # 평가할 총 게임 횟수
-MODEL_PATH = "./runs/dqn_flip7_final.pth"  # 불러올 모델 경로
 GAME_GOAL_SCORE = 200  # 게임 종료 목표 점수
 
 # Device configuration
@@ -172,21 +175,17 @@ class DQNAgent:
 # ============================================================================
 # EVALUATION FUNCTION
 # ============================================================================
-def run_evaluation(agent: DQNAgent, env: gym.Env, num_games: int):
+def run_evaluation_on_checkpoint(agent: DQNAgent, env: gym.Env, num_games: int) -> float:
     """
     훈련된 에이전트의 성능을 'num_games' 만큼 평가합니다.
-    """
-    print("\n" + "=" * 70)
-    print(f"에이전트 평가 시작 (총 {num_games} 게임)...")
-    print("=" * 70)
     
+    Returns:
+        평균 라운드 수
+    """
     eval_rounds_per_game = []
     eval_scores_per_game = []
-    total_start_time = time.time()
     
     for game in range(num_games):
-        game_start_time = time.time()
-        
         # --- 1. '게임' 시작 시 전체 상태 수동 초기화 ---
         # (train_dqn.py와 동일한 게임 초기화 로직)
         env.total_score = 0
@@ -222,26 +221,12 @@ def run_evaluation(agent: DQNAgent, env: gym.Env, num_games: int):
                 obs, info = env.reset()
 
         # --- 5. 게임 종료 ---
-        game_end_time = time.time()
         final_score = info.get("total_game_score", 0)
         eval_rounds_per_game.append(game_total_rounds)
         eval_scores_per_game.append(final_score)
-        
-        print(f"  [게임 {game + 1:03d}/{num_games}] "
-              f"최종 점수: {final_score:03d} | "
-              f"총 라운드: {game_total_rounds:02d} | "
-              f"소요 시간: {game_end_time - game_start_time:.2f}초")
 
-    # --- 6. 최종 결과 요약 ---
-    total_end_time = time.time()
-    print("=" * 70)
-    print(f"🏁 평가 완료 (총 {num_games} 게임) 🏁")
-    print(f"  - 총 소요 시간: {total_end_time - total_start_time:.2f}초")
-    print(f"  - 평균 라운드 수: {np.mean(eval_rounds_per_game):.2f} 라운드")
-    print(f"  - 최소 라운드 수: {np.min(eval_rounds_per_game)}")
-    print(f"  - 최대 라운드 수: {np.max(eval_rounds_per_game)}")
-    print(f"  - 평균 최종 점수: {np.mean(eval_scores_per_game):.2f} 점")
-    print("=" * 70)
+    # Return average rounds
+    return np.mean(eval_rounds_per_game)
 
 
 # ============================================================================
@@ -249,17 +234,98 @@ def run_evaluation(agent: DQNAgent, env: gym.Env, num_games: int):
 # ============================================================================
 if __name__ == "__main__":
     
+    print("=" * 70)
+    print("Policy Evolution Analysis: Evaluating All Checkpoints")
+    print("=" * 70)
+    
     # 1. 환경 생성
     try:
         env = FlipSevenCoreEnv()
-        print("[성공] FlipSevenCoreEnv 환경을 생성했습니다.")
+        print("[성공] FlipSevenCoreEnv 환경을 생성했습니다.\n")
     except Exception as e:
         print(f"[실패] 환경 생성 중 오류 발생: {e}")
         exit()
 
-    # 2. 에이전트 생성 및 모델 로드
+    # 2. 에이전트 생성
     agent = DQNAgent(device=DEVICE)
-    agent.load(MODEL_PATH)
     
-    # 3. 평가 실행
-    run_evaluation(agent, env, num_games=NUM_EVAL_GAMES)
+    # 3. 모든 체크포인트 파일 찾기
+    checkpoint_files = glob.glob('./runs/dqn_flip7_game_*.pth')
+    
+    # 4. 게임 번호로 정렬 (중요!)
+    def extract_game_number(filepath):
+        match = re.search(r'game_(\d+)', filepath)
+        return int(match.group(1)) if match else 0
+    
+    checkpoint_files.sort(key=extract_game_number)
+    
+    # 5. 최종 모델 추가
+    if os.path.exists('./runs/dqn_flip7_final.pth'):
+        checkpoint_files.append('./runs/dqn_flip7_final.pth')
+    
+    print(f"발견된 체크포인트: {len(checkpoint_files)}개\n")
+    
+    if len(checkpoint_files) == 0:
+        print("오류: ./runs/ 디렉토리에서 체크포인트를 찾을 수 없습니다.")
+        print("먼저 train_dqn.py를 실행하여 모델을 학습시키세요.")
+        exit()
+    
+    # 6. 각 체크포인트 평가
+    checkpoints_games = []
+    checkpoints_avg_rounds = []
+    
+    for filepath in checkpoint_files:
+        filename = os.path.basename(filepath)
+        
+        # 게임 번호 추출
+        if 'final' in filename:
+            game_num = 1000  # 최종 모델은 1000으로 표시
+            display_name = "Final Model"
+        else:
+            match = re.search(r'game_(\d+)', filename)
+            game_num = int(match.group(1)) if match else 0
+            display_name = f"Game {game_num}"
+        
+        print(f"평가 중: {display_name} ({filename})...")
+        
+        # 모델 로드
+        try:
+            agent.load(filepath)
+        except Exception as e:
+            print(f"  [실패] 모델 로드 오류: {e}")
+            continue
+        
+        # 평가 실행 (50게임으로 빠르고 안정적인 추정)
+        avg_rounds = run_evaluation_on_checkpoint(agent, env, num_games=50)
+        
+        checkpoints_games.append(game_num)
+        checkpoints_avg_rounds.append(avg_rounds)
+        
+        print(f"  ✓ 완료: 평균 {avg_rounds:.2f} 라운드\n")
+    
+    # 7. 결과 플로팅
+    print("=" * 70)
+    print("정책 진화 그래프 생성 중...")
+    print("=" * 70)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(checkpoints_games, checkpoints_avg_rounds, marker='o', linestyle='-', linewidth=2, markersize=8)
+    plt.title('Policy Evolution: Performance vs. Training Games', fontsize=14, fontweight='bold')
+    plt.xlabel('Training Games Completed', fontsize=12)
+    plt.ylabel('Average Rounds to Reach 200 Points', fontsize=12)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    # 그래프 저장
+    os.makedirs('./runs', exist_ok=True)
+    plt.savefig('./runs/policy_evolution_plot.png', dpi=150)
+    print("정책 진화 그래프 저장 완료: ./runs/policy_evolution_plot.png")
+    
+    # 결과 데이터도 CSV로 저장
+    evolution_df = pd.DataFrame({
+        'Training_Games': checkpoints_games,
+        'Avg_Rounds': checkpoints_avg_rounds
+    })
+    evolution_df.to_csv('./runs/policy_evolution_data.csv', index=False)
+    print("정책 진화 데이터 저장 완료: ./runs/policy_evolution_data.csv")
+    print("=" * 70)

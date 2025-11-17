@@ -4,8 +4,11 @@ import torch.optim as optim
 import numpy as np
 import collections
 import random
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Any, Optional
 import gymnasium as gym
+import matplotlib.pyplot as plt
+import pandas as pd
+import os
 
 from flip_seven_env import FlipSevenCoreEnv
 
@@ -256,14 +259,18 @@ class DQNAgent:
         """Store a transition in the replay buffer."""
         self.replay_buffer.push(obs, action, reward, next_obs, done)
     
-    def learn(self):
-        """Perform one learning step (sample batch and update Q-network)."""
+    def learn(self) -> Optional[float]:
+        """Perform one learning step (sample batch and update Q-network).
+        
+        Returns:
+            Loss value if learning occurred, None otherwise
+        """
         # Don't learn until we have enough samples
         if len(self.replay_buffer) < MIN_REPLAY_SIZE:
-            return
+            return None
         
         if len(self.replay_buffer) < BATCH_SIZE:
-            return
+            return None
         
         # Sample a batch from replay buffer
         obs_batch, action_batch, reward_batch, next_obs_batch, done_batch = \
@@ -295,6 +302,8 @@ class DQNAgent:
         # Gradient clipping to prevent exploding gradients
         torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10.0)
         self.optimizer.step()
+        
+        return loss.item()
     
     def update_target_network(self):
         """Update target network with current Q-network weights."""
@@ -336,7 +345,8 @@ def train():
     agent = DQNAgent()
     
     # Training statistics
-    total_rounds_per_game = []
+    all_game_rounds = []
+    all_game_avg_loss = []
     total_scores_per_game = []
     
     print("=" * 70)
@@ -367,6 +377,8 @@ def train():
         
         game_total_rounds = 0
         game_total_reward = 0.0
+        game_total_loss = 0.0
+        steps_in_game = 0
         
         # ====================================================================
         # 2. THE GAME LOOP (continues until total_score >= 200)
@@ -391,7 +403,10 @@ def train():
                 agent.store_transition(obs, action, reward, next_obs, terminated)
                 
                 # Perform one learning step
-                agent.learn()
+                loss = agent.learn()
+                if loss is not None:
+                    game_total_loss += loss
+                    steps_in_game += 1
                 
                 # Update observation
                 obs = next_obs
@@ -411,7 +426,9 @@ def train():
         # 5. END OF GAME
         # ====================================================================
         final_score = info.get("total_game_score", 0)
-        total_rounds_per_game.append(game_total_rounds)
+        all_game_rounds.append(game_total_rounds)
+        avg_loss = game_total_loss / steps_in_game if steps_in_game > 0 else 0.0
+        all_game_avg_loss.append(avg_loss)
         total_scores_per_game.append(final_score)
         
         # Decay epsilon
@@ -423,18 +440,21 @@ def train():
         
         # Logging
         if (game + 1) % 10 == 0:
-            avg_rounds = np.mean(total_rounds_per_game[-10:])
+            avg_rounds = np.mean(all_game_rounds[-10:])
             avg_score = np.mean(total_scores_per_game[-10:])
+            avg_loss_recent = np.mean(all_game_avg_loss[-10:])
             print(f"Game {game + 1}/{NUM_TOTAL_GAMES_TO_TRAIN} | "
                   f"Rounds: {game_total_rounds} | "
                   f"Score: {final_score} | "
                   f"Avg Rounds (last 10): {avg_rounds:.2f} | "
                   f"Avg Score (last 10): {avg_score:.2f} | "
+                  f"Avg Loss (last 10): {avg_loss_recent:.4f} | "
                   f"Epsilon: {agent.epsilon:.4f} | "
                   f"Buffer: {len(agent.replay_buffer)}")
         
         # Save model periodically
         if (game + 1) % 100 == 0:
+            os.makedirs("./runs", exist_ok=True)
             agent.save(f"./runs/dqn_flip7_game_{game + 1}.pth")
     
     # ========================================================================
@@ -443,14 +463,61 @@ def train():
     print("\n" + "=" * 70)
     print("Training Completed!")
     print("=" * 70)
-    print(f"Average rounds per game: {np.mean(total_rounds_per_game):.2f}")
-    print(f"Min rounds in a game: {np.min(total_rounds_per_game)}")
-    print(f"Max rounds in a game: {np.max(total_rounds_per_game)}")
+    print(f"Average rounds per game: {np.mean(all_game_rounds):.2f}")
+    print(f"Min rounds in a game: {np.min(all_game_rounds)}")
+    print(f"Max rounds in a game: {np.max(all_game_rounds)}")
     print(f"Average final score: {np.mean(total_scores_per_game):.2f}")
     print("=" * 70)
     
     # Save final model
+    os.makedirs("./runs", exist_ok=True)
     agent.save("./runs/dqn_flip7_final.pth")
+    
+    # ========================================================================
+    # SAVE TRAINING HISTORY (DATA & PLOTS)
+    # ========================================================================
+    print("\n" + "=" * 70)
+    print("Saving Training History...")
+    print("=" * 70)
+    
+    # Create DataFrame
+    history_df = pd.DataFrame({
+        'Rounds': all_game_rounds,
+        'Avg_Loss': all_game_avg_loss
+    })
+    
+    # Save raw data to CSV
+    history_df.to_csv('./runs/training_history_data.csv', index=False)
+    print("Training data saved to: ./runs/training_history_data.csv")
+    
+    # Calculate 50-game moving averages
+    history_df['Rounds_MA50'] = history_df['Rounds'].rolling(window=50, min_periods=1).mean()
+    history_df['Avg_Loss_MA50'] = history_df['Avg_Loss'].rolling(window=50, min_periods=1).mean()
+    
+    # Create 2-subplot figure
+    fig, ax = plt.subplots(2, 1, figsize=(12, 10))
+    
+    # Subplot 1: Rounds per Game
+    ax[0].plot(history_df.index, history_df['Rounds'], color='blue', alpha=0.2, label='Raw')
+    ax[0].plot(history_df.index, history_df['Rounds_MA50'], color='blue', linewidth=2, label='50-Game MA')
+    ax[0].set_title('Rounds to Reach 200 Points', fontsize=14, fontweight='bold')
+    ax[0].set_ylabel('Rounds', fontsize=12)
+    ax[0].legend()
+    ax[0].grid(True, alpha=0.3)
+    
+    # Subplot 2: Average Loss per Game
+    ax[1].plot(history_df.index, history_df['Avg_Loss'], color='red', alpha=0.2, label='Raw')
+    ax[1].plot(history_df.index, history_df['Avg_Loss_MA50'], color='red', linewidth=2, label='50-Game MA')
+    ax[1].set_title('Average Training Loss per Game', fontsize=14, fontweight='bold')
+    ax[1].set_xlabel('Game Number', fontsize=12)
+    ax[1].set_ylabel('Avg. MSE Loss', fontsize=12)
+    ax[1].legend()
+    ax[1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig('./runs/training_history_plot.png', dpi=150)
+    print("Training plot saved to: ./runs/training_history_plot.png")
+    print("=" * 70)
     
     # Return agent for evaluation
     return agent, env
