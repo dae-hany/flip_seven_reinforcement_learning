@@ -9,9 +9,10 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
-from flip_seven_env import FlipSevenCoreEnv
-
+# from flip_seven_env import FlipSevenCoreEnv (original version)
+from flip_seven_env_considering_end_bonus import FlipSevenCoreEnv # (considering end-game bonus version)
 
 # ============================================================================
 # 훈련 하이퍼파라미터
@@ -27,6 +28,7 @@ EPSILON_END = 0.01 # 최소 epsilon
 EPSILON_DECAY = 0.995  # 게임마다 epsilon 감소
 MIN_REPLAY_SIZE = 1000  # 이만큼의 transition이 쌓인 후 학습 시작
 
+OUTPUT_DIR = "./runs_end_bonus"
 # ============================================================================
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {DEVICE}")
@@ -455,8 +457,8 @@ def train():
         
         # 주기적으로 모델 저장
         if (game + 1) % 100 == 0:
-            os.makedirs("./runs", exist_ok=True)
-            agent.save(f"./runs/dqn_flip7_game_{game + 1}.pth")
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            agent.save(f"{OUTPUT_DIR}/dqn_flip7_game_{game + 1}.pth")
     
     # ========================================================================
     # TRAINING 완료
@@ -471,8 +473,8 @@ def train():
     print("=" * 70)
     
     # 최종 모델 저장
-    os.makedirs("./runs", exist_ok=True)
-    agent.save("./runs/dqn_flip7_final.pth")
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    agent.save(f"{OUTPUT_DIR}/dqn_flip7_final.pth")
     
     # ========================================================================
     # TRAINING 기록 저장 (데이터 & 플롯)
@@ -515,8 +517,8 @@ def train():
     ax[1].grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('./runs/training_history_plot.png', dpi=150)
-    print("Training plot saved to: ./runs/training_history_plot.png")
+    plt.savefig(f'{OUTPUT_DIR}/training_history_plot.png', dpi=150)
+    print(f"Training plot saved to: {OUTPUT_DIR}/training_history_plot.png")
     print("=" * 70)
     
     return agent, env

@@ -20,6 +20,7 @@ from flip_seven_env import FlipSevenCoreEnv, CARD_TO_IDX, MODIFIER_TO_IDX, NUMBE
 # Device configuration
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+OUTPUT_DIR = "./runs_end_bonus"
 
 # ============================================================================
 # Q-NETWORK ARCHITECTURE
@@ -210,7 +211,7 @@ if __name__ == "__main__":
     
     # 1. 에이전트 로드
     agent = DQNAgent(device=DEVICE)
-    agent.load('./runs/dqn_flip7_final.pth')
+    agent.load(f'{OUTPUT_DIR}/dqn_flip7_final.pth')
     
     # 2. 전체 덱 생성
     full_deck = create_full_deck()
@@ -324,8 +325,7 @@ if __name__ == "__main__":
     
     # 저장
     import os
-    os.makedirs('./runs/policy_analysis_risk_vs_reward', exist_ok=True)
-    save_path = f'./runs/policy_analysis_risk_vs_reward_{total_game_score}.png'
+    save_path = f'{OUTPUT_DIR}/policy_analysis_risk_vs_reward_{total_game_score}.png'
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     print(f"그래프 저장 완료: {save_path}")
     print("=" * 70)
