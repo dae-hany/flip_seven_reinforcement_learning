@@ -435,7 +435,7 @@ def train():
         
         # Save model periodically
         if (game + 1) % 100 == 0:
-            agent.save(f"dqn_flip7_game_{game + 1}.pth")
+            agent.save(f"./runs/dqn_flip7_game_{game + 1}.pth")
     
     # ========================================================================
     # TRAINING COMPLETED
@@ -450,7 +450,7 @@ def train():
     print("=" * 70)
     
     # Save final model
-    agent.save("dqn_flip7_final.pth")
+    agent.save("./runs/dqn_flip7_final.pth")
     
     # Return agent for evaluation
     return agent, env
