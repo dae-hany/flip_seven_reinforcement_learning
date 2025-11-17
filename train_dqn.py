@@ -14,20 +14,20 @@ from flip_seven_env import FlipSevenCoreEnv
 
 
 # ============================================================================
-# HYPERPARAMETERS
+# 훈련 하이퍼파라미터
 # ============================================================================
-NUM_TOTAL_GAMES_TO_TRAIN = 1000
-TARGET_UPDATE_FREQUENCY = 10  # Update target network every N games
-REPLAY_BUFFER_SIZE = 50000
-BATCH_SIZE = 64
-GAMMA = 0.99  # Discount factor
-LEARNING_RATE = 1e-4
-EPSILON_START = 1.0
-EPSILON_END = 0.01
-EPSILON_DECAY = 0.995  # Decay epsilon after each game
-MIN_REPLAY_SIZE = 1000  # Start learning after this many transitions
+NUM_TOTAL_GAMES_TO_TRAIN = 1000 # 학습할 전체 게임 수 
+TARGET_UPDATE_FREQUENCY = 10  # 타겟 네트워크를 N 게임마다 업데이트
+REPLAY_BUFFER_SIZE = 50000 # 리플레이 버퍼 크기
+BATCH_SIZE = 64 # 배치 크기
+GAMMA = 0.99  # 할인률
+LEARNING_RATE = 1e-4 # 학습률 
+EPSILON_START = 1.0 # 초기 epsilon
+EPSILON_END = 0.01 # 최소 epsilon
+EPSILON_DECAY = 0.995  # 게임마다 epsilon 감소
+MIN_REPLAY_SIZE = 1000  # 이만큼의 transition이 쌓인 후 학습 시작
 
-# Device configuration
+# ============================================================================
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {DEVICE}")
 
@@ -37,15 +37,15 @@ print(f"Using device: {DEVICE}")
 # ============================================================================
 class QNetwork(nn.Module):
     """
-    Q-Network that processes the Dict observation space from FlipSevenCoreEnv.
-    
-    Architecture:
-    1. Process each of the 4 observation components separately
-    2. Concatenate all processed features
-    3. Pass through shared MLP
-    4. Output 2 Q-values (for 'Stay' and 'Hit' actions)
+    FlipSevenCoreEnv의 관측 공간을 처리하는 큐 네트워크
+
+    구조:
+    1. 4가지 관측 구성 요소 각각을 별도로 처리
+    2. 모든 처리된 특징들을 연결
+    3. 공유 MLP를 통과
+    4. 2개의 Q값 출력 ('Stay' 및 'Hit' 행동에 대해)
     """
-    
+
     def __init__(
         self,
         hand_numbers_dim: int = 13,
@@ -56,7 +56,7 @@ class QNetwork(nn.Module):
     ):
         super(QNetwork, self).__init__()
         
-        # Separate processing layers for each observation component
+        # Dict 관측 공간의 4가지 요소 각각을 처리하기 위한 4개의 독립된 입력 레이어 정의
         self.hand_numbers_net = nn.Sequential(
             nn.Linear(hand_numbers_dim, 32),
             nn.ReLU()
@@ -77,21 +77,21 @@ class QNetwork(nn.Module):
             nn.ReLU()
         )
         
-        # Calculate total concatenated feature dimension
+        # 총 연결된 특징 차원 계산
         concat_dim = 32 + 16 + 64 + 8  # = 120
         
-        # Shared MLP layers
+        # 공유 MLP 레이어
         self.shared_net = nn.Sequential(
             nn.Linear(concat_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, 2)  # Output: Q(s, Stay), Q(s, Hit)
+            nn.Linear(hidden_dim, 2)  # 출력: Q(s, Stay), Q(s, Hit)
         )
     
     def forward(self, obs_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        Forward pass through the network.
+        순전파 프로세스
         
         Args:
             obs_dict: Dictionary containing batched observations
@@ -103,13 +103,13 @@ class QNetwork(nn.Module):
         Returns:
             Q-values: (batch_size, 2)
         """
-        # Process each component separately
+        # 각 구성 요소를 별도로 처리
         hand_numbers_feat = self.hand_numbers_net(obs_dict["current_hand_numbers"])
         hand_modifiers_feat = self.hand_modifiers_net(obs_dict["current_hand_modifiers"])
         deck_composition_feat = self.deck_composition_net(obs_dict["deck_composition"])
         score_feat = self.score_net(obs_dict["total_game_score"])
         
-        # Concatenate all features
+        # 모든 특징들을 연결
         combined_feat = torch.cat([
             hand_numbers_feat,
             hand_modifiers_feat,
@@ -117,18 +117,18 @@ class QNetwork(nn.Module):
             score_feat
         ], dim=1)
         
-        # Pass through shared MLP
+        # 공유 MLP를 통과
         q_values = self.shared_net(combined_feat)
         
         return q_values
 
 
 # ============================================================================
-# REPLAY BUFFER
+# 리플레이 버퍼
 # ============================================================================
 class ReplayBuffer:
     """
-    Experience Replay Buffer for storing transitions.
+    경험 재생 버퍼 (Experience Replay Buffer) - 전이(transition)를 저장합니다.
     """
     
     def __init__(self, capacity: int):
@@ -142,14 +142,14 @@ class ReplayBuffer:
         next_obs: Dict[str, np.ndarray],
         done: bool
     ):
-        """Store a transition in the buffer."""
+        """전이를 버퍼에 저장합니다"""
         self.buffer.append((obs, action, reward, next_obs, done))
     
     def sample(self, batch_size: int) -> Tuple:
-        """Sample a batch of transitions."""
+        """전이 배치를 샘플링합니다"""
         batch = random.sample(self.buffer, batch_size)
         
-        # Unpack the batch
+        # 배치 분리
         obs_batch = []
         action_batch = []
         reward_batch = []
@@ -170,11 +170,11 @@ class ReplayBuffer:
 
 
 # ============================================================================
-# DQN AGENT
+# DQN 에이전트
 # ============================================================================
 class DQNAgent:
     """
-    DQN Agent that learns to play Flip 7.
+    Flip 7을 학습하는 DQN 에이전트입니다.
     """
     
     def __init__(
@@ -188,37 +188,37 @@ class DQNAgent:
         self.gamma = gamma
         self.device = device
         
-        # Initialize Q-networks
+        # Q-네트워크 초기화
         self.q_network = QNetwork().to(device)
         self.target_network = QNetwork().to(device)
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()  # Target network is in eval mode
         
-        # Optimizer
+        # 옵티마이저
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=learning_rate)
         
-        # Replay buffer
+        # 리플레이 버퍼
         self.replay_buffer = ReplayBuffer(REPLAY_BUFFER_SIZE)
         
-        # Epsilon for epsilon-greedy policy
+        # epsilon-greedy policy를 위한 초기 epsilon 값
         self.epsilon = EPSILON_START
     
     def _dict_to_tensor(self, obs_dict: Dict[str, np.ndarray]) -> Dict[str, torch.Tensor]:
-        """Convert observation dictionary to tensor dictionary."""
+        """관찰 딕셔너리를 텐서 딕셔너리로 변환합니다."""
         return {
             key: torch.FloatTensor(value).unsqueeze(0).to(self.device)
             for key, value in obs_dict.items()
         }
     
     def _batch_dict_to_tensor(self, obs_batch: list) -> Dict[str, torch.Tensor]:
-        """Convert batch of observation dictionaries to batched tensor dictionary."""
+        """관찰 딕셔너리 배치를 텐서 딕셔너리로 변환합니다."""
         batched_dict = {}
         
-        # Get all keys from first observation
+        # 첫 번째 관찰에서 모든 키를 가져옵니다
         keys = obs_batch[0].keys()
         
         for key in keys:
-            # Stack all observations for this key
+            # 이 키에 대한 모든 관찰을 쌓습니다
             batched_dict[key] = torch.FloatTensor(
                 np.array([obs[key] for obs in obs_batch])
             ).to(self.device)
@@ -227,20 +227,20 @@ class DQNAgent:
     
     def select_action(self, obs: Dict[str, np.ndarray], eval_mode: bool = False) -> int:
         """
-        Select action using epsilon-greedy policy.
+        epsilon-greedy 정책을 사용하여 행동을 선택합니다.
         
-        Args:
-            obs: Observation dictionary
-            eval_mode: If True, always select greedy action (no exploration)
-        
-        Returns:
-            Selected action (0 = Stay, 1 = Hit)
+        인자:
+            obs: 관찰 딕셔너리
+            eval_mode: True인 경우, 항상 탐험 없이 탐욕적 행동 선택
+
+        반환:
+            선택된 행동 (0 = Stay, 1 = Hit)
         """
-        # Exploration: random action
+        # exploration: 무작위 행동
         if not eval_mode and random.random() < self.epsilon:
             return random.randint(0, self.action_space_size - 1)
         
-        # Exploitation: greedy action
+        # exploitation: 탐욕적 행동
         with torch.no_grad():
             obs_tensor = self._dict_to_tensor(obs)
             q_values = self.q_network(obs_tensor)
@@ -256,65 +256,66 @@ class DQNAgent:
         next_obs: Dict[str, np.ndarray],
         done: bool
     ):
-        """Store a transition in the replay buffer."""
+        """리플레이 버퍼에 전이(transition)를 저장합니다."""
         self.replay_buffer.push(obs, action, reward, next_obs, done)
     
     def learn(self) -> Optional[float]:
-        """Perform one learning step (sample batch and update Q-network).
+        """한 번의 학습 단계를 수행합니다 (배치 샘플링 및 Q-네트워크 업데이트).
         
-        Returns:
-            Loss value if learning occurred, None otherwise
+        반환:
+            학습이 수행된 경우 손실 값, 그렇지 않으면 None
         """
-        # Don't learn until we have enough samples
+        # 충분한 샘플이 쌓일 때까지 학습하지 않습니다
         if len(self.replay_buffer) < MIN_REPLAY_SIZE:
             return None
         
         if len(self.replay_buffer) < BATCH_SIZE:
             return None
         
-        # Sample a batch from replay buffer
+        # 리플레이 버퍼에서 배치 샘플링
         obs_batch, action_batch, reward_batch, next_obs_batch, done_batch = \
             self.replay_buffer.sample(BATCH_SIZE)
         
-        # Convert to tensors
+        # 텐서로 변환
         obs_tensor = self._batch_dict_to_tensor(obs_batch)
         action_tensor = torch.LongTensor(action_batch).to(self.device)
         reward_tensor = torch.FloatTensor(reward_batch).to(self.device)
         next_obs_tensor = self._batch_dict_to_tensor(next_obs_batch)
         done_tensor = torch.FloatTensor(done_batch).to(self.device)
         
-        # Compute current Q-values
+        # 현재 Q-값 계산
         current_q_values = self.q_network(obs_tensor)
         current_q_values = current_q_values.gather(1, action_tensor.unsqueeze(1)).squeeze(1)
         
-        # Compute target Q-values
+        # 목표 Q-값 계산
         with torch.no_grad():
             next_q_values = self.target_network(next_obs_tensor)
             max_next_q_values = next_q_values.max(dim=1)[0]
             target_q_values = reward_tensor + (1 - done_tensor) * self.gamma * max_next_q_values
         
-        # Compute loss
+        # 손실 계산
         loss = nn.MSELoss()(current_q_values, target_q_values)
         
-        # Optimize the Q-network
+        # Q-네트워크 최적화
         self.optimizer.zero_grad()
         loss.backward()
-        # Gradient clipping to prevent exploding gradients
+
+        # 그래디언트 클리핑: 그래디언트 폭주 방지
         torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10.0)
         self.optimizer.step()
         
         return loss.item()
     
     def update_target_network(self):
-        """Update target network with current Q-network weights."""
+        """현재 Q-네트워크 가중치로 타겟 네트워크를 업데이트합니다."""
         self.target_network.load_state_dict(self.q_network.state_dict())
     
     def decay_epsilon(self):
-        """Decay epsilon for epsilon-greedy policy."""
+        """epsilon-greedy 정책을 위한 epsilon 값을 감소시킵니다."""
         self.epsilon = max(EPSILON_END, self.epsilon * EPSILON_DECAY)
     
     def save(self, filepath: str):
-        """Save the Q-network."""
+        """Q-네트워크를 저장합니다."""
         torch.save({
             'q_network_state_dict': self.q_network.state_dict(),
             'target_network_state_dict': self.target_network.state_dict(),
@@ -324,7 +325,7 @@ class DQNAgent:
         print(f"Model saved to {filepath}")
     
     def load(self, filepath: str):
-        """Load the Q-network."""
+        """Q-네트워크를 불러옵니다."""
         checkpoint = torch.load(filepath, map_location=self.device)
         self.q_network.load_state_dict(checkpoint['q_network_state_dict'])
         self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
@@ -338,13 +339,13 @@ class DQNAgent:
 # ============================================================================
 def train():
     """
-    Main training loop that handles Game/Round structure correctly.
+    게임/라운드 구조를 올바르게 처리하는 메인 학습 루프입니다.
     """
-    # Initialize environment and agent
+    # 환경 및 에이전트 초기화
     env = FlipSevenCoreEnv()
     agent = DQNAgent()
     
-    # Training statistics
+    # 학습 통계
     all_game_rounds = []
     all_game_avg_loss = []
     total_scores_per_game = []
@@ -361,18 +362,18 @@ def train():
     print(f"Target update frequency: every {TARGET_UPDATE_FREQUENCY} games")
     print("=" * 70)
     
-    # Main training loop: iterate over GAMES
+    # 메인 학습 루프: 게임 단위로 반복
     for game in range(NUM_TOTAL_GAMES_TO_TRAIN):
         
         # ====================================================================
-        # 1. MANUALLY RESET THE ENTIRE GAME
+        # 1. 게임 전체를 수동으로 리셋
         # ====================================================================
         env.total_score = 0
         env.draw_deck = collections.deque()
         env.discard_pile = []
-        env._initialize_deck_to_discard()  # Reinitialize all 85 cards
+        env._initialize_deck_to_discard()  # 모든 85장 카드를 다시 초기화
         
-        # Prepare the FIRST round
+        # 첫 번째 라운드 준비
         obs, info = env.reset()
         
         game_total_rounds = 0
@@ -381,7 +382,7 @@ def train():
         steps_in_game = 0
         
         # ====================================================================
-        # 2. THE GAME LOOP (continues until total_score >= 200)
+        # 2. 게임 루프 (total_score >= 200이 될 때까지 계속)
         # ====================================================================
         while info.get("total_game_score", 0) < 200:
             game_total_rounds += 1
@@ -389,41 +390,41 @@ def train():
             round_reward = 0.0
             
             # ================================================================
-            # 3. THE ROUND (EPISODE) LOOP
+            # 3. 라운드 (에피소드) 루프
             # ================================================================
             while not terminated:
                 
-                # Select action using epsilon-greedy policy
+                # epsilon-greedy 정책을 사용하여 행동 선택
                 action = agent.select_action(obs)
                 
-                # Take step in environment
+                # 환경에서 한 단계 진행
                 next_obs, reward, terminated, truncated, info = env.step(action)
                 
-                # Store transition in replay buffer
+                # 리플레이 버퍼에 전이 저장
                 agent.store_transition(obs, action, reward, next_obs, terminated)
                 
-                # Perform one learning step
+                # 한 번의 학습 단계 수행
                 loss = agent.learn()
                 if loss is not None:
                     game_total_loss += loss
                     steps_in_game += 1
                 
-                # Update observation
+                # 관찰 업데이트
                 obs = next_obs
                 round_reward += reward
             
             game_total_reward += round_reward
             
             # ================================================================
-            # 4. END OF ROUND (terminated=True)
+            # 4. 라운드 종료 (terminated=True)
             # ================================================================
-            # Prepare the NEXT round by calling reset()
-            # This clears the hand but does NOT reset total_score
+            # 다음 라운드를 준비하기 위해 reset() 호출
+            # 이는 손패를 초기화하지만 total_score는 초기화하지 않음
             if info.get("total_game_score", 0) < 200:
                 obs, info = env.reset()
         
         # ====================================================================
-        # 5. END OF GAME
+        # 5. 게임 종료
         # ====================================================================
         final_score = info.get("total_game_score", 0)
         all_game_rounds.append(game_total_rounds)
@@ -431,14 +432,14 @@ def train():
         all_game_avg_loss.append(avg_loss)
         total_scores_per_game.append(final_score)
         
-        # Decay epsilon
+        # 엡실론 감소
         agent.decay_epsilon()
         
-        # Update target network periodically
+        # 주기적으로 타겟 네트워크 업데이트
         if (game + 1) % TARGET_UPDATE_FREQUENCY == 0:
             agent.update_target_network()
         
-        # Logging
+        # 로깅
         if (game + 1) % 10 == 0:
             avg_rounds = np.mean(all_game_rounds[-10:])
             avg_score = np.mean(total_scores_per_game[-10:])
@@ -452,13 +453,13 @@ def train():
                   f"Epsilon: {agent.epsilon:.4f} | "
                   f"Buffer: {len(agent.replay_buffer)}")
         
-        # Save model periodically
+        # 주기적으로 모델 저장
         if (game + 1) % 100 == 0:
             os.makedirs("./runs", exist_ok=True)
             agent.save(f"./runs/dqn_flip7_game_{game + 1}.pth")
     
     # ========================================================================
-    # TRAINING COMPLETED
+    # TRAINING 완료
     # ========================================================================
     print("\n" + "=" * 70)
     print("Training Completed!")
@@ -469,35 +470,34 @@ def train():
     print(f"Average final score: {np.mean(total_scores_per_game):.2f}")
     print("=" * 70)
     
-    # Save final model
+    # 최종 모델 저장
     os.makedirs("./runs", exist_ok=True)
     agent.save("./runs/dqn_flip7_final.pth")
     
     # ========================================================================
-    # SAVE TRAINING HISTORY (DATA & PLOTS)
+    # TRAINING 기록 저장 (데이터 & 플롯)
     # ========================================================================
     print("\n" + "=" * 70)
-    print("Saving Training History...")
+    print("Training 기록 저장 중...")
     print("=" * 70)
     
-    # Create DataFrame
     history_df = pd.DataFrame({
         'Rounds': all_game_rounds,
         'Avg_Loss': all_game_avg_loss
     })
     
-    # Save raw data to CSV
+    # 원시 데이터를 CSV로 저장
     history_df.to_csv('./runs/training_history_data.csv', index=False)
     print("Training data saved to: ./runs/training_history_data.csv")
     
-    # Calculate 50-game moving averages
+    # 50게임 이동 평균 계산
     history_df['Rounds_MA50'] = history_df['Rounds'].rolling(window=50, min_periods=1).mean()
     history_df['Avg_Loss_MA50'] = history_df['Avg_Loss'].rolling(window=50, min_periods=1).mean()
     
-    # Create 2-subplot figure
+    # 2-서브플롯 그림 생성
     fig, ax = plt.subplots(2, 1, figsize=(12, 10))
     
-    # Subplot 1: Rounds per Game
+    # 서브플롯 1: 게임당 라운드 수
     ax[0].plot(history_df.index, history_df['Rounds'], color='blue', alpha=0.2, label='Raw')
     ax[0].plot(history_df.index, history_df['Rounds_MA50'], color='blue', linewidth=2, label='50-Game MA')
     ax[0].set_title('Rounds to Reach 200 Points', fontsize=14, fontweight='bold')
@@ -505,7 +505,7 @@ def train():
     ax[0].legend()
     ax[0].grid(True, alpha=0.3)
     
-    # Subplot 2: Average Loss per Game
+    # 서브플롯 2: 게임당 평균 손실
     ax[1].plot(history_df.index, history_df['Avg_Loss'], color='red', alpha=0.2, label='Raw')
     ax[1].plot(history_df.index, history_df['Avg_Loss_MA50'], color='red', linewidth=2, label='50-Game MA')
     ax[1].set_title('Average Training Loss per Game', fontsize=14, fontweight='bold')
@@ -519,7 +519,6 @@ def train():
     print("Training plot saved to: ./runs/training_history_plot.png")
     print("=" * 70)
     
-    # Return agent for evaluation
     return agent, env
 
 

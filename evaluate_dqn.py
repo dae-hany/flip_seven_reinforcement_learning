@@ -19,6 +19,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import re
 
+import os
+# OpenMP 중복 라이브러리 충돌 방지
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+
 # 'flip_seven_env.py' 파일에서 환경 클래스를 임포트합니다.
 try:
     from flip_seven_env import FlipSevenCoreEnv
@@ -315,6 +319,12 @@ if __name__ == "__main__":
     plt.ylabel('Average Rounds to Reach 200 Points', fontsize=12)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
+    # x축 100 단위로 표시
+    plt.xticks(range(0, max(checkpoints_games)+100, 100))
+    # y 축 0.5 단위로 표시
+    y_min = min(checkpoints_avg_rounds) - 1
+    y_max = max(checkpoints_avg_rounds) + 1
+    plt.yticks(np.arange(y_min, y_max + 0.5, 0.5))
     
     # 그래프 저장
     os.makedirs('./runs', exist_ok=True)

@@ -221,26 +221,32 @@ if __name__ == "__main__":
     # SCENARIO 1: Card Counting Test
     # ========================================================================
     print("=" * 70)
-    print("📊 Scenario 1: Card Counting (카드 카운팅 학습 여부)")
+    print("Scenario 1: Card Counting (카드 카운팅 학습 여부)")
     print("=" * 70)
-    print("설명: 손에 '8'이 있을 때, 덱에 '8'이 남아있는지 여부에 따라")
+    print("설명: 손에 'n'이 있을 때, 덱에 'n'이 남아있는지 여부에 따라")
     print("      에이전트의 행동이 달라지는지 확인합니다.")
     print("=" * 70)
     print()
     
-    s1_hand = {8}
-    
-    # Case A: 덱에 '8'이 여전히 남아있음 (위험)
-    print("  [Case A] 덱에 '8'이 남아있음 (Bust 위험 있음)")
-    s1_deck_with_8 = [card for card in full_deck if card != '8']  # '8' 하나만 제거
-    s1_obs_safe = create_obs(s1_hand, [], s1_deck_with_8, 50)
-    get_q_values(agent, s1_obs_safe)
-    
-    # Case B: 덱에 '8'이 전혀 없음 (안전)
-    print("  [Case B] 덱에 '8'이 전혀 없음 (Bust 불가능)")
-    s1_deck_no_8 = [card for card in full_deck if card not in ['8']]  # 모든 '8' 제거
-    s1_obs_bust_proof = create_obs(s1_hand, [], s1_deck_no_8, 50)
-    get_q_values(agent, s1_obs_bust_proof)
+    # NUMBER_CARD_TYPES (['0', '1', ..., '12']) 리스트를 순회합니다.
+    for card_str in NUMBER_CARD_TYPES:
+        card_val = int(card_str)
+        s1_hand = {card_val}
+
+        print(f"--- [ 테스트 대상: 손패에 '{card_str}'이 있는 경우 ] ---")
+
+        # Case A: 덱에 해당 카드가 여전히 남아있음 (Bust 위험 있음)
+        # (논리 오류 수정: full_deck을 그대로 사용하여 위험 상황을 시뮬레이션)
+        print(f"  [Case A] 덱에 '{card_str}'이 남아있음 (Bust 위험)")
+        s1_deck_with_card = full_deck 
+        s1_obs_risk = create_obs(s1_hand, [], s1_deck_with_card, 50)
+        get_q_values(agent, s1_obs_risk)
+        
+        # Case B: 덱에 해당 카드가 전혀 없음 (Bust 불가능)
+        print(f"  [Case B] 덱에 '{card_str}'이 전혀 없음 (Bust 불가능)")
+        s1_deck_no_card = [card for card in full_deck if card != card_str]
+        s1_obs_safe = create_obs(s1_hand, [], s1_deck_no_card, 50)
+        get_q_values(agent, s1_obs_safe)
     
     print("  ✓ 예상 결과: Case B에서 Hit의 Q-value가 더 높아야 함")
     print("  ✓ 이는 에이전트가 카드 카운팅을 학습했음을 의미함")
@@ -250,7 +256,7 @@ if __name__ == "__main__":
     # SCENARIO 2: Goal Awareness Test
     # ========================================================================
     print("=" * 70)
-    print("🎯 Scenario 2: Goal Awareness (목표 인식 학습 여부)")
+    print("Scenario 2: Goal Awareness (목표 인식 학습 여부)")
     print("=" * 70)
     print("설명: 동일한 라운드 점수(25점)를 가지고 있을 때,")
     print("      게임 총점에 따라 에이전트의 행동이 달라지는지 확인합니다.")
@@ -278,7 +284,7 @@ if __name__ == "__main__":
     # SCENARIO 3: Risk vs. Reward (추가 시나리오)
     # ========================================================================
     print("=" * 70)
-    print("⚖️  Scenario 3: Risk vs. Reward (위험 대비 보상 평가)")
+    print("Scenario 3: Risk vs. Reward (위험 대비 보상 평가)")
     print("=" * 70)
     print("설명: 낮은 점수를 가지고 있을 때와 높은 점수를 가지고 있을 때")
     print("      에이전트의 위험 감수 성향이 달라지는지 확인합니다.")
@@ -305,7 +311,7 @@ if __name__ == "__main__":
     # SCENARIO 4: Modifier Card Effect
     # ========================================================================
     print("=" * 70)
-    print("✨ Scenario 4: Modifier Card Effect (수정자 카드 영향)")
+    print("Scenario 4: Modifier Card Effect (수정자 카드 영향)")
     print("=" * 70)
     print("설명: 수정자 카드(x2)가 있을 때 에이전트의 평가가 달라지는지 확인")
     print("=" * 70)
