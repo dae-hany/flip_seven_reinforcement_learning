@@ -143,18 +143,12 @@ flip_seven_reinforcement_learning/
 ├── test_policy_with_risk_vs_reward.py     # 위험 대비 보상 평가
 ├── test_policy_with_modifier_card_effect.py # 수정자 카드 효과 분석
 │
-├── runs/                                  # 학습 결과물
-│   ├── dqn_flip7_final.pth               # 최종 학습 모델
-│   ├── dqn_flip7_game_*.pth              # 체크포인트 모델들
-│   ├── training_history_plot.png         # 학습 곡선
-│   ├── training_history_data.csv         # 학습 메트릭 데이터
-│   ├── policy_evolution_plot.png         # 정책 진화 그래프
-│   ├── policy_evolution_data.csv         # 체크포인트 평가 데이터
-│   ├── policy_analysis_card_counting.png # 카드 카운팅 분석 결과
-│   ├── policy_analysis_goal_awareness.png # 목표 인식 분석 결과
-│   ├── policy_analysis_risk_vs_reward.png # 위험-보상 분석 결과
-│   ├── policy_analysis_modifier_effect.png # 수정자 효과 분석 결과
-│   └── policy_analysis_high_risk_counting.png # 고위험 시나리오 분석
+├── runs/                                  # 학습 결과물 (타임스탬프별 하위 디렉토리)
+│   └── run_YYYYMMDD_HHMMSS/              # 각 훈련 실행별 고유 디렉토리
+│       ├── dqn_flip7_final.pth           # 최종 학습 모델
+│       ├── dqn_flip7_game_*.pth          # 체크포인트 모델들
+│       ├── training_history_plot.png     # 학습 곡선
+│       └── training_history_data.csv     # 학습 메트릭 데이터
 │
 └── README.md                              # 이 파일
 ```
@@ -181,7 +175,6 @@ flip_seven_reinforcement_learning/
 #### 환경 파일
 - **`flip_seven_env.py`**: 
   - 전체 게임 로직을 구현한 `FlipSevenCoreEnv` 클래스
-  - **`use_end_bonus` 파라미터**: 200점 달성 시 게임 승리 보너스 활성화 여부
   - `gym.spaces.Dict` 관측 공간으로 카드 카운팅 지원
   - 덱 관리, 점수 계산, 멀티 라운드 구조 처리
   - 상태 포함: 손패 숫자 카드, 수정자 카드, 덱 구성, 총점
@@ -254,7 +247,6 @@ python train.py
 - ε-greedy: 1.0 → 0.01 (decay=0.995)
 - 리플레이 버퍼 크기: 50,000
 - 타겟 네트워크 업데이트: 매 10게임
-- **게임 종료 보너스**: True (200점 달성 시 +100 보상)
 
 **하이퍼파라미터 수정 방법**:
 `config.py` 파일을 열어 원하는 값으로 변경:
@@ -262,14 +254,16 @@ python train.py
 # config.py 예시
 NUM_TOTAL_GAMES_TO_TRAIN = 2000  # 게임 수 증가
 LEARNING_RATE = 5e-5              # 학습률 조정
-USE_END_BONUS = False             # 게임 종료 보너스 비활성화
+EPSILON_DECAY = 0.99              # 엡실론 감소율 조정
 ```
 
-**출력물**:
-- `./runs_end_bonus/dqn_flip7_final.pth`: 최종 모델
-- `./runs_end_bonus/dqn_flip7_game_*.pth`: 체크포인트 모델 (매 100게임)
-- `./runs_end_bonus/training_history_plot.png`: 학습 곡선
-- `./runs_end_bonus/training_history_data.csv`: 학습 메트릭
+**출력물** (타임스탬프 기반 고유 디렉토리에 저장):
+- `./runs/run_YYYYMMDD_HHMMSS/dqn_flip7_final.pth`: 최종 모델
+- `./runs/run_YYYYMMDD_HHMMSS/dqn_flip7_game_*.pth`: 체크포인트 모델 (매 100게임)
+- `./runs/run_YYYYMMDD_HHMMSS/training_history_plot.png`: 학습 곡선
+- `./runs/run_YYYYMMDD_HHMMSS/training_history_data.csv`: 학습 메트릭
+
+> **참고**: 각 훈련 실행마다 고유한 디렉토리가 생성되어 이전 결과가 덮어쓰여지지 않습니다.
 
 ### 3. 에이전트 평가
 ```bash
@@ -318,16 +312,6 @@ python test_policy_scenarios.py
 ## 🏗 환경 세부사항
 
 ### FlipSevenCoreEnv
-
-#### 초기화 파라미터
-```python
-env = FlipSevenCoreEnv(use_end_bonus=False)
-```
-
-**파라미터**:
-- `use_end_bonus` (bool, 기본값: False):
-  - `True`: 200점 달성 시 게임 승리 보너스 (+100) 보상에 추가
-  - `False`: 기본 동작 (라운드 점수만 보상으로 사용)
 
 #### 관측 공간 (`gym.spaces.Dict`)
 ```python

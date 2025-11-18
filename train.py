@@ -24,7 +24,6 @@ from config import (
     EPSILON_START,
     EPSILON_END,
     EPSILON_DECAY,
-    USE_END_BONUS,
     OUTPUT_DIR,
     LOG_INTERVAL,
     SAVE_INTERVAL,
@@ -44,7 +43,7 @@ def train():
     게임/라운드 구조를 올바르게 처리하는 메인 학습 루프입니다.
     """
     # 환경 및 에이전트 초기화
-    env = FlipSevenCoreEnv(use_end_bonus=USE_END_BONUS)
+    env = FlipSevenCoreEnv()
     agent = DQNAgent(device=DEVICE)
     
     # 학습 통계
@@ -57,7 +56,6 @@ def train():
     print("=" * 70)
     print(f"Output directory: {OUTPUT_DIR}")
     print(f"Total games to train: {NUM_TOTAL_GAMES_TO_TRAIN}")
-    print(f"Use end bonus: {USE_END_BONUS}")
     print(f"Replay buffer size: {REPLAY_BUFFER_SIZE}")
     print(f"Batch size: {BATCH_SIZE}")
     print(f"Gamma: {GAMMA}")
