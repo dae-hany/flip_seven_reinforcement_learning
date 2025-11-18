@@ -13,7 +13,8 @@
 5. [사용 방법](#-사용-방법)
 6. [환경 세부사항](#-환경-세부사항)
 7. [DQN 아키텍처](#-dqn-아키텍처)
-8. [정책 분석 도구](#-정책-분석-도구)
+8. [고급 DQN 기능 및 최적화](#-고급-dqn-기능-및-최적화)
+9. [정책 분석 도구](#-정책-분석-도구)
 
 ---
 
@@ -26,7 +27,15 @@
 - ✅ **커스텀 Gymnasium 환경**: `gymnasium.Env` API와 완전 호환
 - ✅ **Dict 관측 공간**: 덱 구성 추적을 통한 카드 카운팅 지원
 - ✅ **멀티 라운드 게임 구조**: 라운드(에피소드)와 게임(전체 매치) 구분
+- ✅ **고급 DQN 기술**: Double DQN, Dueling Network 아키텍처
+- ✅ **보상 형성**: 비선형 보상 체계로 공격적 플레이 유도
+- ✅ **성능 최적화**: GPU 가속, 큰 배치 크기, torch.compile
 - ✅ **종합 분석 도구**: 학습 곡선 시각화 및 정책 평가 스크립트
+
+### 현재 상태
+**현재 성능**: 게임당 평균 ~11 라운드
+
+에이전트는 '안전 함정(Safety Trap)'을 극복하고 있습니다. 초기 버전은 낮은 위험의 안전한 플레이(10-20점 Stay)를 선호하여 15-20 라운드가 필요했습니다. 보상 형성과 고급 DQN 기법을 통해 더 공격적인 전략을 학습하도록 개선되었으며, 최적화가 진행 중입니다.
 
 ---
 
@@ -389,6 +398,113 @@ Dict 관측 공간을 처리하기 위한 **다중 분기(Multi-branch) 신경�
    - MSE Loss: `(Q(s,a) - [r + γ·max Q(s',a')]²`
    - 옵티마이저: Adam (lr=1e-4)
    - 그래디언트 클리핑: max_norm=10.0
+
+---
+
+## 🚀 고급 DQN 기능 및 최적화
+
+이 프로젝트는 표준 DQN을 넘어 여러 최신 강화학습 기법을 구현합니다.
+
+### 1. Double DQN (이중 DQN)
+
+**문제점**: 표준 DQN은 Q-값을 과대평가하는 경향이 있습니다.
+- 타겟 계산 시 `max Q(s', a')`를 사용하면 노이즈가 있는 값 중 최댓값을 선택
+- 이로 인해 실제보다 높은 Q-값 추정
+
+**해결책**: Double DQN
+```python
+# Standard DQN
+max_next_q = target_network(s').max()
+
+# Double DQN
+best_action = q_network(s').argmax()      # 로컬 네트워크로 행동 선택
+max_next_q = target_network(s')[best_action]  # 타겟 네트워크로 평가
+```
+
+**효과**: Q-값 과대평가 완화, 더 안정적인 학습
+
+### 2. Dueling Network (듀얼링 네트워크)
+
+**아이디어**: Q(s,a)를 상태 가치 V(s)와 행동 이점 A(s,a)로 분리
+
+```
+공유 특징 추출
+    ├─→ Value Stream ──→ V(s) (1개 값)
+    └─→ Advantage Stream ──→ A(s,a) (2개 값)
+
+Q(s,a) = V(s) + (A(s,a) - mean(A(s,:)))
+```
+
+**장점**:
+- 상태 자체의 가치와 각 행동의 상대적 이점을 명확히 구분
+- 모든 행동을 경험하지 않아도 상태 가치 학습 가능
+- 특히 여러 행동이 비슷한 Q-값을 가질 때 효과적
+
+### 3. 보상 형성 (Reward Shaping)
+
+**목표**: 에이전트가 안전한 플레이(10-20점)보다 공격적인 플레이(40-60점)를 선호하도록 유도
+
+**비선형 보상 함수**:
+```python
+shaped_reward = (real_score / 20.0) ** 2
+```
+
+**효과**:
+| 실제 점수 | 형성된 보상 | 배율 |
+|-----------|-------------|------|
+| 20점      | 1.0         | 1배  |
+| 40점      | 4.0         | 4배  |
+| 60점      | 9.0         | 9배  |
+| 80점      | 16.0        | 16배 |
+
+**결과**: 
+- 낮은 점수로 안전하게 Stay하는 "안전 함정" 극복
+- 더 높은 점수를 추구하는 공격적인 정책 학습
+- 라운드 수 감소 (15-20 라운드 → 11 라운드)
+
+### 4. 성능 최적화
+
+**대용량 배치 학습**:
+- 배치 크기: 64 → **512** (8배 증가)
+- 리플레이 버퍼: 50,000 transitions
+- 더 안정적인 그래디언트 추정
+
+**GPU 가속화**:
+- CUDA 지원 자동 감지
+- `torch.compile()` 사용 (PyTorch 2.0+)
+- cuDNN 벤치마킹 활성화
+- 훈련 속도 2-3배 향상
+
+**기타 최적화**:
+- 그래디언트 클리핑 (max_norm=10.0)
+- 타겟 네트워크 주기적 업데이트 (10 게임마다)
+- 효율적인 Dict 관측 공간 처리
+
+### 설정 방법
+
+모든 고급 기능은 `config.py`에서 토글 가능:
+
+```python
+# config.py
+
+# DQN 고급 기능
+USE_DOUBLE_DQN = True          # Double DQN 사용 여부
+USE_DUELING_NETWORK = True     # Dueling 아키텍처 사용 여부
+
+# 학습 하이퍼파라미터
+BATCH_SIZE = 512               # 배치 크기 (GPU 메모리에 따라 조정)
+LEARNING_RATE = 1e-4           # 학습률
+GAMMA = 0.99                   # 할인율
+
+# 성능 튜닝
+NUM_TOTAL_GAMES_TO_TRAIN = 1000  # 학습 게임 수
+```
+
+**실험 시나리오**:
+- Standard DQN: `USE_DOUBLE_DQN=False`, `USE_DUELING_NETWORK=False`
+- Double DQN만: `USE_DOUBLE_DQN=True`, `USE_DUELING_NETWORK=False`
+- Dueling DQN만: `USE_DOUBLE_DQN=False`, `USE_DUELING_NETWORK=True`
+- Full (권장): `USE_DOUBLE_DQN=True`, `USE_DUELING_NETWORK=True`
 
 ---
 

@@ -20,7 +20,9 @@ from config import (
     LEARNING_RATE,
     EPSILON_START,
     EPSILON_END,
-    MIN_REPLAY_SIZE
+    MIN_REPLAY_SIZE,
+    USE_DOUBLE_DQN,
+    USE_DUELING_NETWORK
 )
 
 
@@ -93,9 +95,15 @@ class DQNAgent:
         self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.epsilon_end = epsilon_end
         
-        # Q-네트워크 초기화
-        self.q_network = QNetwork().to(self.device)
-        self.target_network = QNetwork().to(self.device)
+        # Q-네트워크 초기화 (Dueling Network 지원)
+        self.q_network = QNetwork(
+            action_space_size=action_space_size,
+            use_dueling=USE_DUELING_NETWORK
+        ).to(self.device)
+        self.target_network = QNetwork(
+            action_space_size=action_space_size,
+            use_dueling=USE_DUELING_NETWORK
+        ).to(self.device)
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()  # Target network is in eval mode
         
@@ -194,8 +202,20 @@ class DQNAgent:
         
         # 목표 Q-값 계산
         with torch.no_grad():
-            next_q_values = self.target_network(next_obs_tensor)
-            max_next_q_values = next_q_values.max(dim=1)[0]
+            if USE_DOUBLE_DQN:
+                # Double DQN: Q-값 과대평가 문제 완화
+                # 1. 로컬 네트워크로 최선 행동 선택
+                next_q_values_local = self.q_network(next_obs_tensor)
+                best_actions = next_q_values_local.argmax(dim=1)  # (batch_size,)
+                
+                # 2. 타겟 네트워크로 해당 행동의 Q-값 평가
+                next_q_values_target = self.target_network(next_obs_tensor)
+                max_next_q_values = next_q_values_target.gather(1, best_actions.unsqueeze(1)).squeeze(1)
+            else:
+                # Standard DQN: 타겟 네트워크에서 최대 Q-값 선택
+                next_q_values = self.target_network(next_obs_tensor)
+                max_next_q_values = next_q_values.max(dim=1)[0]
+            
             target_q_values = reward_tensor + (1 - done_tensor) * self.gamma * max_next_q_values
         
         # 손실 계산

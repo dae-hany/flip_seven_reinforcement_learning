@@ -42,6 +42,10 @@ def train():
     """
     게임/라운드 구조를 올바르게 처리하는 메인 학습 루프입니다.
     """
+    # GPU 가속 최적화 활성화
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+        
     # 환경 및 에이전트 초기화
     env = FlipSevenCoreEnv()
     agent = DQNAgent(device=DEVICE)

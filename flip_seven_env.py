@@ -153,6 +153,27 @@ class FlipSevenCoreEnv(gym.Env):
         round_score = number_sum + modifier_sum + flip_7_bonus
         return int(round_score)
 
+    def _shape_reward(self, real_score: int) -> float:
+        """
+        비선형 보상 형성(Reward Shaping)을 적용합니다.
+        
+        목표: 높은 점수(40+)를 안전한 점수(20)보다 훨씬 가치있게 만들어
+              에이전트가 더 공격적으로 'Hit'하도록 유도합니다.
+        
+        Args:
+            real_score: 게임 규칙에 따른 실제 점수
+        
+        Returns:
+            형성된 보상값 (RL 학습용)
+        
+        예시:
+            20점 -> (20/20)^2 = 1.0
+            40점 -> (40/20)^2 = 4.0  (실제로는 2배 점수지만 4배 보상)
+            60점 -> (60/20)^2 = 9.0  (실제로는 3배 점수지만 9배 보상)
+        """
+        shaped_reward = (real_score / 20.0) ** 2
+        return shaped_reward
+
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         """
         새로운 라운드(에피소드)를 위해 환경을 리셋합니다.
@@ -197,9 +218,12 @@ class FlipSevenCoreEnv(gym.Env):
         # ACTION 0: STAY (규칙 3.4)
         if action == 0:
             terminated = True
-            # 라운드의 최종 점수 계산 (Bust 아님)
-            reward = self._calculate_score(bust=False)
-            self.total_score += reward
+            # 라운드의 실제 점수 계산 (게임 규칙)
+            real_score = self._calculate_score(bust=False)
+            # 실제 게임 점수 업데이트 (게임 진행용)
+            self.total_score += real_score
+            # 보상 형성 적용 (RL 학습용)
+            reward = self._shape_reward(real_score)
 
         # ACTION 1: HIT (규칙 3.3)
         elif action == 1:
@@ -225,7 +249,9 @@ class FlipSevenCoreEnv(gym.Env):
                 # BUST인지 확인 (규칙 3.3)
                 if card_value in self.current_numbers_in_hand:
                     terminated = True
-                    reward = self._calculate_score(bust=True) # 0 points
+                    real_score = self._calculate_score(bust=True)  # 0 points
+                    # BUST는 항상 0점이므로 보상도 0
+                    reward = self._shape_reward(real_score)
                 
                 # BUST가 아닌 경우
                 else:
@@ -233,8 +259,12 @@ class FlipSevenCoreEnv(gym.Env):
                     # FLIP 7인지 확인 (규칙 3.3)
                     if len(self.current_numbers_in_hand) == 7:
                         terminated = True
-                        reward = self._calculate_score(bust=False) # +15 포함
-                        self.total_score += reward
+                        # 라운드의 실제 점수 계산 (+15 보너스 포함)
+                        real_score = self._calculate_score(bust=False)
+                        # 실제 게임 점수 업데이트
+                        self.total_score += real_score
+                        # 보상 형성 적용 (RL 학습용)
+                        reward = self._shape_reward(real_score)
                     else:
                         # 라운드 계속, 이번 스텝의 보상은 0
                         reward = 0.0
