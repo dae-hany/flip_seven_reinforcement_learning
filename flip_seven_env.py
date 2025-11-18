@@ -16,6 +16,10 @@ ALL_CARD_TYPES = NUMBER_CARD_TYPES + MODIFIER_CARD_TYPES
 # e.g., {"0": 0, "1": 1, ..., "12": 12, "+2": 13, ..., "x2": 18}
 CARD_TO_IDX = {card: i for i, card in enumerate(ALL_CARD_TYPES)}
 MODIFIER_TO_IDX = {card: i for i, card in enumerate(MODIFIER_CARD_TYPES)}
+
+# 게임 승리 보너스 및 목표 점수 상수 정의
+GAME_GOAL_SCORE = 200
+GAME_WIN_BONUS = 100.0  # (하이퍼파라미터: 50.0, 100.0 등 자유롭게 설정)
 # ----------------------------------------
 
 class FlipSevenCoreEnv(gym.Env):
@@ -29,8 +33,16 @@ class FlipSevenCoreEnv(gym.Env):
     """
     metadata = {'render_modes': ['human']}
 
-    def __init__(self):
+    def __init__(self, use_end_bonus: bool = False):
+        """
+        Args:
+            use_end_bonus: True인 경우, 200점 달성 시 게임 승리 보너스를 보상에 추가합니다.
+                          False인 경우, 기본 동작만 수행합니다.
+        """
         super().__init__()
+        
+        # 게임 승리 보너스 사용 여부 저장
+        self.use_end_bonus = use_end_bonus
 
         # 1. 행동 공간 정의
         # 0: Stay(라운드를 종료하고 점수를 획득)
@@ -197,9 +209,21 @@ class FlipSevenCoreEnv(gym.Env):
         # ACTION 0: STAY (규칙 3.4)
         if action == 0:
             terminated = True
-            # 라운드의 최종 점수 계산 (Bust 아님)
-            reward = self._calculate_score(bust=False)
-            self.total_score += reward
+            # 라운드 점수 계산
+            round_score = self._calculate_score(bust=False)
+            reward = round_score  # 기본 보상은 라운드 점수
+
+            # use_end_bonus가 True인 경우 승리 보너스 체크
+            if self.use_end_bonus:
+                current_total_score = self.total_score
+                new_total_score = current_total_score + round_score
+                
+                # 200점을 넘기지 못한 상태에서, 이번 라운드 점수로 200점을 넘긴 경우
+                if current_total_score < GAME_GOAL_SCORE and new_total_score >= GAME_GOAL_SCORE:
+                    reward += GAME_WIN_BONUS  # 보상에 승리 보너스 추가
+            
+            # 실제 총점 업데이트 (보너스가 아닌 순수 라운드 점수만)
+            self.total_score += round_score
 
         # ACTION 1: HIT (규칙 3.3)
         elif action == 1:
@@ -233,8 +257,21 @@ class FlipSevenCoreEnv(gym.Env):
                     # FLIP 7인지 확인 (규칙 3.3)
                     if len(self.current_numbers_in_hand) == 7:
                         terminated = True
-                        reward = self._calculate_score(bust=False) # +15 포함
-                        self.total_score += reward
+                        # 라운드 점수 계산
+                        round_score = self._calculate_score(bust=False)  # +15 포함
+                        reward = round_score  # 기본 보상
+
+                        # use_end_bonus가 True인 경우 승리 보너스 체크 (Stay와 동일한 로직)
+                        if self.use_end_bonus:
+                            current_total_score = self.total_score
+                            new_total_score = current_total_score + round_score
+                            
+                            # 200점을 넘기지 못한 상태에서, 이번 라운드 점수로 200점을 넘긴 경우
+                            if current_total_score < GAME_GOAL_SCORE and new_total_score >= GAME_GOAL_SCORE:
+                                reward += GAME_WIN_BONUS  # 보상에 승리 보너스 추가
+                        
+                        # 실제 총점 업데이트
+                        self.total_score += round_score
                     else:
                         # 라운드 계속, 이번 스텝의 보상은 0
                         reward = 0.0

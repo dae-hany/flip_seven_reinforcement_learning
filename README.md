@@ -86,10 +86,11 @@ python test_env.py
 
 #### 2. DQN 에이전트 학습
 ```bash
-python train_dqn.py
+python train.py
 ```
-- 학습된 모델: `./runs/dqn_flip7_final.pth`
-- 학습 곡선: `./runs/training_history_plot.png`
+- 학습된 모델: `./runs_end_bonus/dqn_flip7_final.pth`
+- 학습 곡선: `./runs_end_bonus/training_history_plot.png`
+- **하이퍼파라미터 설정**: `config.py`에서 쉽게 수정 가능
 
 #### 3. 에이전트 평가
 ```bash
@@ -125,10 +126,13 @@ python test_policy_with_card_counting_risky.py
 flip_seven_reinforcement_learning/
 ├── [core_game]flip_seven_rulebook_for_ai_agent.txt  # 게임 규칙 정의
 │
-├── flip_seven_env.py                      # Gymnasium 환경 구현
-├── flip_seven_env_considering_end_bonus.py # 종료 보너스 포함 환경 (실험적)
+├── config.py                              # 훈련 하이퍼파라미터 설정
+├── network.py                             # Q-네트워크 아키텍처
+├── agent.py                               # DQN 에이전트 및 리플레이 버퍼
+├── flip_seven_env.py                      # Gymnasium 환경 구현 (통합 버전)
 │
-├── train_dqn.py                           # DQN 학습 스크립트
+├── train.py                               # DQN 학습 메인 스크립트
+├── train_dqn.py                           # DQN 학습 스크립트 (레거시)
 ├── evaluate_dqn.py                        # 체크포인트 간 정책 진화 분석
 ├── test_env.py                            # 환경 테스트 (랜덤 에이전트)
 │
@@ -157,22 +161,41 @@ flip_seven_reinforcement_learning/
 
 ### 주요 파일 설명
 
+#### 핵심 모듈
+- **`config.py`**:
+  - 모든 훈련 하이퍼파라미터를 한 곳에서 관리
+  - 환경 설정 (게임 종료 보너스 사용 여부 등)
+  - 네트워크 아키텍처 파라미터
+  - 로깅 및 저장 간격 설정
+
+- **`network.py`**:
+  - `QNetwork` 클래스: Dict 관측 공간을 위한 다중 분기 신경망 구조
+  - 4개의 독립된 입력 브랜치 (손패 숫자, 손패 수정자, 덱 구성, 총점)
+  - 공유 MLP를 통한 Q-value 출력
+
+- **`agent.py`**:
+  - `DQNAgent` 클래스: 학습 로직 및 행동 선택
+  - `ReplayBuffer` 클래스: 경험 재생 버퍼
+  - 타겟 네트워크, ε-greedy 정책, 그래디언트 클리핑 포함
+
 #### 환경 파일
 - **`flip_seven_env.py`**: 
   - 전체 게임 로직을 구현한 `FlipSevenCoreEnv` 클래스
+  - **`use_end_bonus` 파라미터**: 200점 달성 시 게임 승리 보너스 활성화 여부
   - `gym.spaces.Dict` 관측 공간으로 카드 카운팅 지원
   - 덱 관리, 점수 계산, 멀티 라운드 구조 처리
   - 상태 포함: 손패 숫자 카드, 수정자 카드, 덱 구성, 총점
 
-- **`flip_seven_env_considering_end_bonus.py`**:
-  - 게임 종료 시 보너스를 포함한 실험적 환경 변형
-
 #### 학습 및 평가 파일
-- **`train_dqn.py`**: 
-  - DQN 에이전트 학습 메인 스크립트
-  - `QNetwork`: Dict 관측 공간을 위한 다중 분기 신경망 구조
-  - `DQNAgent`: 경험 재생 버퍼, 타겟 네트워크, ε-greedy 정책 포함
+- **`train.py`**: 
+  - DQN 에이전트 학습 메인 스크립트 (리팩토링 버전)
+  - 모듈화된 구조로 코드 가독성 및 유지보수성 향상
+  - `config.py`에서 하이퍼파라미터 자동 로드
   - 학습 곡선 및 메트릭 자동 저장
+
+- **`train_dqn.py`** (레거시):
+  - 이전 버전의 통합 학습 스크립트
+  - 하위 호환성을 위해 유지
 
 - **`evaluate_dqn.py`**: 
   - 체크포인트 모델들의 성능 평가
@@ -220,10 +243,10 @@ python test_env.py
 
 ### 2. DQN 에이전트 학습
 ```bash
-python train_dqn.py
+python train.py
 ```
 
-**학습 하이퍼파라미터** (코드 내 수정 가능):
+**학습 하이퍼파라미터** (`config.py`에서 수정 가능):
 - 총 학습 게임 수: 1000
 - 배치 크기: 64
 - 학습률: 1e-4
@@ -231,12 +254,22 @@ python train_dqn.py
 - ε-greedy: 1.0 → 0.01 (decay=0.995)
 - 리플레이 버퍼 크기: 50,000
 - 타겟 네트워크 업데이트: 매 10게임
+- **게임 종료 보너스**: True (200점 달성 시 +100 보상)
+
+**하이퍼파라미터 수정 방법**:
+`config.py` 파일을 열어 원하는 값으로 변경:
+```python
+# config.py 예시
+NUM_TOTAL_GAMES_TO_TRAIN = 2000  # 게임 수 증가
+LEARNING_RATE = 5e-5              # 학습률 조정
+USE_END_BONUS = False             # 게임 종료 보너스 비활성화
+```
 
 **출력물**:
-- `./runs/dqn_flip7_final.pth`: 최종 모델
-- `./runs/dqn_flip7_game_*.pth`: 체크포인트 모델 (매 100게임)
-- `./runs/training_history_plot.png`: 학습 곡선
-- `./runs/training_history_data.csv`: 학습 메트릭
+- `./runs_end_bonus/dqn_flip7_final.pth`: 최종 모델
+- `./runs_end_bonus/dqn_flip7_game_*.pth`: 체크포인트 모델 (매 100게임)
+- `./runs_end_bonus/training_history_plot.png`: 학습 곡선
+- `./runs_end_bonus/training_history_data.csv`: 학습 메트릭
 
 ### 3. 에이전트 평가
 ```bash
@@ -285,6 +318,16 @@ python test_policy_scenarios.py
 ## 🏗 환경 세부사항
 
 ### FlipSevenCoreEnv
+
+#### 초기화 파라미터
+```python
+env = FlipSevenCoreEnv(use_end_bonus=False)
+```
+
+**파라미터**:
+- `use_end_bonus` (bool, 기본값: False):
+  - `True`: 200점 달성 시 게임 승리 보너스 (+100) 보상에 추가
+  - `False`: 기본 동작 (라운드 점수만 보상으로 사용)
 
 #### 관측 공간 (`gym.spaces.Dict`)
 ```python
