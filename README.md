@@ -51,7 +51,13 @@ OpenAI Gymnasium 인터페이스를 기반으로 `FlipSevenCoreEnv`를 직접 �
 *   **결과**: 덱에 `12, 11, 10`이 하나도 없는 **안전한 상황(Safe Case)**임을 인지하자, Hit에 대한 선호도(Q-Value)가 급격히 상승했습니다. (비록 33점이라 Stay를 택했지만, 판단의 근거는 명확했습니다.)
     *   ![Scenario Test](./runs/policy_analysis_12_11_10.png)
 
-### ③ 1:1 대결 시뮬레이션 (vs Daehan Player)
+### ③ 특수 카드(Modifier) 가치 인식
+*   **실험**: 손패에 `12`가 있을 때, **일반 상황**과 **+10 Modifier 카드가 있는 상황** 비교
+*   **결과**: Modifier 카드가 있을 때 Hit에 대한 Q-Value가 변화함 (점수 증가로 인한 전략 수정)
+*   **의미**: 에이전트가 숫자 카드뿐만 아니라 **특수 카드의 효과(점수 추가, 배수 등)를 정확히 이해**하고 이를 행동 결정에 반영하고 있음을 확인했습니다.
+    *   ![Modifier Effect](./runs/policy_analysis_modifier_effect_{12}.png)
+
+### ④ 1:1 대결 시뮬레이션 (vs Daehan Player)
 *   **상대**: **Daehan Player** (수학적으로 기대값(EV)을 계산하여 플레이하는 **이론상 최적의 봇**)
 *   **결과 (10,000판)**:
     *   **DQN Agent 승률**: **51.2%**
