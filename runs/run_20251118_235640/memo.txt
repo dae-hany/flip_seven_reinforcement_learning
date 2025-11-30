@@ -1,8 +1,0 @@
-Output directory: ./runs/run_20251118_235640
-Total games to train: 3000
-Replay buffer size: 50000
-Batch size: 1024
-Gamma: 0.99
-Learning rate: 0.0001
-Epsilon: 1.0 -> 0.01 (decay: 0.999)
-Target update frequency: every 10 games

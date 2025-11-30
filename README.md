@@ -77,6 +77,17 @@ OpenAI Gymnasium 인터페이스를 기반으로 `FlipSevenCoreEnv`를 직접 �
 *   **의미**: 변수가 많은 다인전에서도 Agent는 상위권을 유지하며 **"판을 지배하는 플레이어"**임을 입증했습니다.
     *   ![6 Player Result](./runs/6player_simulation_results.png)
 
+### ⑤ DQN Agent 우위 분석 (vs Daehan Player)
+*   **목적**: 수학적 최적해(Daehan)를 이길 수 있었던 원인 정밀 분석 (10,000판 시뮬레이션)
+*   **결과**:
+    *   **안정성**: 둘 다 Bust 비율은 극도로 낮음 (0%에 수렴).
+    *   **평균 득점**: Daehan Player가 소폭 우세 (24.5 vs 22.5).
+    *   **결정적 차이 (Risk Taking)**: **Bust 확률이 30%가 넘는 위험 상황**에서,
+        *   **Daehan Player**: **0.77%**만 Hit를 시도 (거의 절대 안전 지향).
+        *   **DQN Agent**: **7.63%**나 Hit를 시도 (약 **10배** 더 과감함).
+*   **결론**: Daehan Player는 "잃지 않는 플레이"에 집착하여 역전 기회를 놓치는 반면, DQN Agent는 **"승리를 위해 필요한 계산된 위험"**을 감수할 줄 압니다. 이 **전략적 과감함(Strategic Aggression)**이 51.2% 승률의 비결입니다.
+    *   ![Superiority Analysis](./runs/superiority_analysis.png)
+
 ---
 
 ## 5. 설치 및 실행 방법
@@ -110,5 +121,28 @@ pip install gymnasium torch numpy matplotlib pandas
 
 ---
 
-## 6. 결론
+## 6. 파일 구조 및 설명
+이 폴더의 각 파일은 다음과 같은 역할을 합니다.
+
+### 📂 핵심 코드
+*   **`train.py`**: DQN 에이전트를 **학습**시키는 메인 스크립트입니다. 실행 시 `./runs/latest_run` 폴더에 모델과 로그가 저장됩니다.
+*   **`agent.py`**: DQN 에이전트 클래스(`DQNAgent`)와 리플레이 버퍼(`ReplayBuffer`)가 정의되어 있습니다.
+*   **`network.py`**: 신경망 모델(`QNetwork`) 구조가 정의되어 있습니다.
+*   **`flip_seven_env.py`**: Flip Seven 게임의 **강화학습 환경(Gymnasium)**입니다. 게임의 규칙과 로직이 여기에 있습니다.
+*   **`config.py`**: 학습에 필요한 **하이퍼파라미터** (학습률, 배치 크기 등)와 설정을 관리합니다.
+
+### 🧪 시뮬레이션 및 분석 (실행 가능)
+*   **`simulate_solo.py`**: 에이전트와 Daehan Player가 **혼자서** 게임할 때의 성능(200점 도달 라운드)을 측정합니다.
+*   **`simulate_duel.py`**: 에이전트와 Daehan Player의 **1:1 대결**을 시뮬레이션하고 승률을 비교합니다.
+*   **`simulate_6players.py`**: **6인 플레이** 상황에서 에이전트의 성능을 테스트합니다.
+*   **`simulate_player_scaling.py`**: 플레이어 수(2~6명)에 따른 에이전트의 승률 변화를 분석합니다.
+*   **`analyze_superiority.py`**: 에이전트가 Daehan Player보다 우수한 이유(Bust 확률, 리스크 관리 등)를 정밀 분석합니다.
+*   **`test_policy_with_card_counting_test.py`**: 에이전트가 **카드 카운팅**을 제대로 하고 있는지 검증하는 테스트 스크립트입니다.
+
+### 📁 기타
+*   **`runs/`**: 학습된 모델(`dqn_flip7_final.pth`)과 분석 결과 이미지들이 저장되는 폴더입니다.
+
+---
+
+## 7. 결론
 이 프로젝트를 통해 **강화학습 에이전트가 복잡한 카드 게임의 규칙을 스스로 터득하고, 고도의 전략인 카드 카운팅까지 구사할 수 있음**을 확인했습니다. 특히 수학적으로 설계된 알고리즘 봇과 대등한 승부를 펼친 것은 매우 고무적인 성과입니다.
