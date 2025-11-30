@@ -8,6 +8,7 @@ import os
 # OpenMP 중복 라이브러리 충돌 방지
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
+import config
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -238,7 +239,7 @@ if __name__ == "__main__":
     
     # 1. 에이전트 로드
     agent = DQNAgent(device=DEVICE)
-    agent.load('./runs/dqn_flip7_final.pth')
+    agent.load(config.FINAL_MODEL_PATH)
     
     # 2. 전체 덱 생성
     full_deck = create_full_deck()
@@ -332,33 +333,7 @@ if __name__ == "__main__":
     plt.tight_layout()
     
     # 저장
-    import os
-    os.makedirs('./runs', exist_ok=True)
-    save_path = './runs/policy_analysis_card_counting.png'
+    save_path = os.path.join(config.PLOTS_DIR, 'policy_analysis_card_counting.png')
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     print(f"그래프 저장 완료: {save_path}")
-    print("=" * 70)
-    
-    # ========================================================================
-    # 6. 분석 요약
-    # ========================================================================
-    print("\n" + "=" * 70)
-    print("Analysis Summary")
-    print("=" * 70)
-    
-    # Q(Hit) 차이 계산
-    hit_diffs = [q_hit_case_b[i] - q_hit_case_a[i] for i in range(len(card_numbers))]
-    avg_hit_diff = np.mean(hit_diffs)
-    positive_count = sum(1 for d in hit_diffs if d > 0)
-    
-    print(f"평균 Q(Hit) 차이 (Case B - Case A): {avg_hit_diff:.2f}")
-    print(f"긍정적 차이를 보인 카드 수: {positive_count}/{len(card_numbers)}")
-    
-    if avg_hit_diff > 0 and positive_count >= len(card_numbers) * 0.7:
-        print("\n✓ 결론: 에이전트가 카드 카운팅을 성공적으로 학습했습니다!")
-        print("  덱에 중복 카드가 없을 때 Hit를 더 선호하는 경향을 보입니다.")
-    else:
-        print("\n✗ 결론: 카드 카운팅 학습이 불충분합니다.")
-        print("  추가 훈련이나 네트워크 구조 개선이 필요할 수 있습니다.")
-    
     print("=" * 70)

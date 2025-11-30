@@ -1,14 +1,9 @@
-# simulate_6players.py
-#
-# Flip Seven 6-Player Simulation
-# Players:
-# 1. DQN Agent
-# 2. Daehan Player (Rational)
-# 3. Only Hit Player (Always Hit)
-# 4. One Hit Player (Hit 1 time then Stay)
-# 5. Two Hit Player (Hit 2 times then Stay)
-# 6. Three Hit Player (Hit 3 times then Stay)
-#
+"""
+6인 플레이어 시뮬레이션 (DQN Agent vs 5 Others)
+
+이 스크립트는 DQN 에이전트와 5명의 다른 플레이어(Daehan Player 및 다양한 전략) 간의
+6인 게임을 시뮬레이션합니다.
+"""
 
 import os
 import numpy as np
@@ -16,118 +11,91 @@ import collections
 import matplotlib.pyplot as plt
 import torch
 import pandas as pd
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List
 
 from flip_seven_env import FlipSevenCoreEnv
 from agent import DQNAgent
 from simulate_duel import DaehanPlayer
+import config
 
-# OpenMP duplicate library error fix
+# OpenMP 라이브러리 충돌 방지
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ============================================================================
-# SIMPLE PLAYERS
+# 단순 전략 플레이어 클래스들
 # ============================================================================
-class SimplePlayer:
-    def __init__(self, name, strategy_type, hit_limit=None):
+class RandomPlayer:
+    """무작위로 행동하는 플레이어"""
+    def __init__(self, name="Random"):
         self.name = name
-        self.strategy_type = strategy_type # 'always_hit', 'fixed_hit'
-        self.hit_limit = hit_limit
-        self.hits_this_round = 0
-        
-    def reset_round(self):
-        self.hits_this_round = 0
-        
     def select_action(self, obs, info):
-        # Action 0: Stay, 1: Hit
-        
-        if self.strategy_type == 'always_hit':
-            return 1 # Always Hit
-            
-        elif self.strategy_type == 'fixed_hit':
-            if self.hits_this_round < self.hit_limit:
-                self.hits_this_round += 1
-                return 1 # Hit
-            else:
-                return 0 # Stay
-        
-        return 0 # Default Stay
+        return np.random.randint(0, 2)
+
+class ConservativePlayer:
+    """보수적인 플레이어: 점수가 15점 이상이면 무조건 Stay"""
+    def __init__(self, name="Conservative"):
+        self.name = name
+    def select_action(self, obs, info):
+        current_score = info.get("current_round_score_if_stay", 0)
+        return 0 if current_score >= 15 else 1
+
+class AggressivePlayer:
+    """공격적인 플레이어: 점수가 30점 미만이면 무조건 Hit"""
+    def __init__(self, name="Aggressive"):
+        self.name = name
+    def select_action(self, obs, info):
+        current_score = info.get("current_round_score_if_stay", 0)
+        return 1 if current_score < 30 else 0
 
 # ============================================================================
-# 6-PLAYER SIMULATION
+# 6인 시뮬레이션
 # ============================================================================
 def simulate_6players(num_games=1000, goal_score=200):
-    print(f"\nStarting 6-Player Simulation")
-    print(f"Games: {num_games} | Goal Score: {goal_score}")
+    print(f"\n6인 게임 시뮬레이션 시작 ({num_games} 게임)")
     print("=" * 70)
     
-    # Initialize Environment
     env = FlipSevenCoreEnv()
     
-    # Initialize Players
-    # 1. DQN Agent
+    # 에이전트 로드
     agent = DQNAgent(device=DEVICE)
-    model_path = './runs/dqn_flip7_final.pth'
-    if os.path.exists(model_path):
-        agent.load(model_path)
+    if os.path.exists(config.FINAL_MODEL_PATH):
+        agent.load(config.FINAL_MODEL_PATH)
     else:
-        print(f"Warning: Model not found at {model_path}. Using random agent.")
-    
-    # 2. Daehan Player
-    daehan = DaehanPlayer("Daehan Player")
-    
-    # 3-6. Simple Players
-    p3 = SimplePlayer("Only Hit", 'always_hit')
-    p4 = SimplePlayer("One Hit", 'fixed_hit', hit_limit=1)
-    p5 = SimplePlayer("Two Hit", 'fixed_hit', hit_limit=2)
-    p6 = SimplePlayer("Three Hit", 'fixed_hit', hit_limit=3)
-    
+        print(f"경고: 모델 파일을 찾을 수 없습니다: {config.FINAL_MODEL_PATH}")
+        print("랜덤 에이전트로 진행합니다.")
+        
+    # 플레이어 구성
     players = [
         {'type': 'agent', 'obj': agent, 'name': 'DQN Agent'},
-        {'type': 'daehan', 'obj': daehan, 'name': 'Daehan Player'},
-        {'type': 'simple', 'obj': p3, 'name': 'Only Hit'},
-        {'type': 'simple', 'obj': p4, 'name': 'One Hit'},
-        {'type': 'simple', 'obj': p5, 'name': 'Two Hit'},
-        {'type': 'simple', 'obj': p6, 'name': 'Three Hit'}
+        {'type': 'daehan', 'obj': DaehanPlayer("Daehan 1"), 'name': 'Daehan 1'},
+        {'type': 'daehan', 'obj': DaehanPlayer("Daehan 2"), 'name': 'Daehan 2'},
+        {'type': 'simple', 'obj': ConservativePlayer("Conservative"), 'name': 'Conservative'},
+        {'type': 'simple', 'obj': AggressivePlayer("Aggressive"), 'name': 'Aggressive'},
+        {'type': 'simple', 'obj': RandomPlayer("Random"), 'name': 'Random'}
     ]
     
-    # Statistics
     wins = {p['name']: 0 for p in players}
-    total_rounds = {p['name']: [] for p in players}
     
     for game_idx in range(num_games):
-        # Reset Game
         scores = {p['name']: 0 for p in players}
         
-        # Reset Deck
+        # 덱 초기화
         env.draw_deck = collections.deque()
         env.discard_pile = []
         env._initialize_deck_to_discard()
         env._shuffle_discard_into_deck()
         
-        game_rounds = 0
         winner = None
         
-        # Game Loop
         while winner is None:
-            game_rounds += 1
-            
+            # 순차적 턴 진행
             for p in players:
-                # Check if game already ended by previous player in this round loop?
-                # Usually turns are sequential. If P1 wins, game over immediately? 
-                # Or finish round? Standard board games usually finish immediately or equal turns.
-                # Let's assume immediate win for simplicity and speed.
                 if winner: break
                 
-                # Sync Score
                 env.total_score = scores[p['name']]
                 obs, info = env.reset()
-                
-                # Reset internal state for simple players
-                if p['type'] == 'simple':
-                    p['obj'].reset_round()
                 
                 terminated = False
                 while not terminated:
@@ -135,61 +103,57 @@ def simulate_6players(num_games=1000, goal_score=200):
                         action = p['obj'].select_action(obs, eval_mode=True)
                     elif p['type'] == 'daehan':
                         action = p['obj'].select_action(obs, info)
-                    elif p['type'] == 'simple':
+                    else: # simple players
                         action = p['obj'].select_action(obs, info)
-                    
+                        
                     next_obs, reward, terminated, _, info = env.step(action)
                     obs = next_obs
                 
-                # Update Score
                 scores[p['name']] = info["total_game_score"]
                 
                 if scores[p['name']] >= goal_score:
                     winner = p['name']
-                    wins[winner] += 1
-                    total_rounds[winner].append(game_rounds)
-                    break
+                    wins[p['name']] += 1
         
         if (game_idx + 1) % 100 == 0:
-            print(f"Game {game_idx + 1}/{num_games} | Winner: {winner}")
-
+            print(f"게임 {game_idx + 1}/{num_games} 완료.")
+            
     # ========================================================================
-    # ANALYSIS & VISUALIZATION
+    # 결과 분석
     # ========================================================================
     print("\n" + "=" * 70)
-    print("6-Player Simulation Results")
+    print("6인 게임 결과 요약")
     print("=" * 70)
     
-    # Sort by wins
-    sorted_results = sorted(wins.items(), key=lambda x: x[1], reverse=True)
+    sorted_wins = sorted(wins.items(), key=lambda x: x[1], reverse=True)
     
-    for name, win_count in sorted_results:
-        win_rate = (win_count / num_games) * 100
-        avg_rnd = np.mean(total_rounds[name]) if total_rounds[name] else 0
-        print(f"{name}: {win_count} Wins ({win_rate:.1f}%) | Avg Rounds: {avg_rnd:.2f}")
+    labels = []
+    win_counts = []
+    
+    for name, count in sorted_wins:
+        rate = (count / num_games) * 100
+        print(f"{name}: {count}승 ({rate:.1f}%)")
+        labels.append(name)
+        win_counts.append(count)
         
-    # Plotting
-    names = [x[0] for x in sorted_results]
-    counts = [x[1] for x in sorted_results]
-    colors = ['#FFD700', '#C0C0C0', '#CD7F32', '#4ECDC4', '#FF6B6B', '#95E1D3'] # Gold, Silver, Bronze, etc.
-    
-    plt.figure(figsize=(12, 7))
-    bars = plt.bar(names, counts, color=colors[:len(names)])
+    # 그래프 그리기
+    plt.figure(figsize=(12, 6))
+    bars = plt.bar(labels, win_counts, color=['#4ECDC4', '#FF6B6B', '#FF6B6B', '#FFE66D', '#FF8C42', '#A8E6CF'])
     
     for bar in bars:
         height = bar.get_height()
         plt.text(bar.get_x() + bar.get_width()/2., height,
                  f'{height} ({height/num_games*100:.1f}%)',
-                 ha='center', va='bottom', fontsize=11, fontweight='bold')
+                 ha='center', va='bottom', fontsize=10, fontweight='bold')
     
-    plt.title(f'Flip Seven 6-Player Battle ({num_games} Games)', fontsize=16, fontweight='bold')
-    plt.ylabel('Number of Wins', fontsize=12)
-    plt.xticks(rotation=15)
-    plt.grid(axis='y', alpha=0.3)
+    plt.title(f'6-Player Simulation Results ({num_games} Games)', fontsize=16, fontweight='bold')
+    plt.ylabel('Wins', fontsize=12)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
     
-    save_path = './runs/6player_simulation_results.png'
+    save_path = os.path.join(config.PLOTS_DIR, '6player_simulation_results.png')
     plt.savefig(save_path, dpi=150)
-    print(f"\nResult plot saved to {save_path}")
+    print(f"\n결과 그래프 저장 완료: {save_path}")
     print("=" * 70)
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import collections
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import config
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 from flip_seven_env import FlipSevenCoreEnv
@@ -27,7 +28,8 @@ from config import (
     OUTPUT_DIR,
     LOG_INTERVAL,
     SAVE_INTERVAL,
-    EVAL_GAMES
+    EVAL_GAMES,
+    CHECKPOINTS_DIR
 )
 
 # 디바이스 설정
@@ -59,100 +61,67 @@ def train():
     print("Starting DQN Training on FlipSevenCoreEnv")
     print("=" * 70)
     print(f"Output directory: {OUTPUT_DIR}")
-    print(f"Total games to train: {NUM_TOTAL_GAMES_TO_TRAIN}")
-    print(f"Replay buffer size: {REPLAY_BUFFER_SIZE}")
-    print(f"Batch size: {BATCH_SIZE}")
-    print(f"Gamma: {GAMMA}")
-    print(f"Learning rate: {LEARNING_RATE}")
-    print(f"Epsilon: {EPSILON_START} -> {EPSILON_END} (decay: {EPSILON_DECAY})")
-    print(f"Target update frequency: every {TARGET_UPDATE_FREQUENCY} games")
-    print("=" * 70)
     
-    # 메인 학습 루프: 게임 단위로 반복
     for game in range(NUM_TOTAL_GAMES_TO_TRAIN):
-        
-        # ====================================================================
-        # 1. 게임 전체를 수동으로 리셋
-        # ====================================================================
+        # 게임 리셋
         env.total_score = 0
         env.draw_deck = collections.deque()
         env.discard_pile = []
-        env._initialize_deck_to_discard()  # 모든 85장 카드를 다시 초기화
+        env._initialize_deck_to_discard()
+        env._shuffle_discard_into_deck()
         
-        # 첫 번째 라운드 준비
         obs, info = env.reset()
-        
         game_total_rounds = 0
-        game_total_reward = 0.0
-        game_total_loss = 0.0
-        steps_in_game = 0
+        game_losses = []
         
-        # ====================================================================
-        # 2. 게임 루프 (total_score >= 200이 될 때까지 계속)
-        # ====================================================================
+        # 200점에 도달할 때까지 플레이 (한 게임)
         while info.get("total_game_score", 0) < 200:
             game_total_rounds += 1
             terminated = False
-            round_reward = 0.0
             
-            # ================================================================
-            # 3. 라운드 (에피소드) 루프
-            # ================================================================
             while not terminated:
-                
-                # epsilon-greedy 정책을 사용하여 행동 선택
+                # 행동 선택
                 action = agent.select_action(obs)
                 
-                # 환경에서 한 단계 진행
+                # 환경 스텝
                 next_obs, reward, terminated, truncated, info = env.step(action)
                 
-                # 리플레이 버퍼에 전이 저장
+                # 리플레이 버퍼에 저장
                 agent.store_transition(obs, action, reward, next_obs, terminated)
                 
-                # 한 번의 학습 단계 수행
+                # 학습 수행
                 loss = agent.learn()
                 if loss is not None:
-                    game_total_loss += loss
-                    steps_in_game += 1
+                    game_losses.append(loss)
                 
-                # 관찰 업데이트
                 obs = next_obs
-                round_reward += reward
             
-            game_total_reward += round_reward
-            
-            # ================================================================
-            # 4. 라운드 종료 (terminated=True)
-            # ================================================================
-            # 다음 라운드를 준비하기 위해 reset() 호출
-            # 이는 손패를 초기화하지만 total_score는 초기화하지 않음
+            # 라운드 종료 후, 200점 미만이면 다음 라운드 위해 리셋 (점수는 유지)
             if info.get("total_game_score", 0) < 200:
                 obs, info = env.reset()
         
-        # ====================================================================
-        # 5. 게임 종료
-        # ====================================================================
+        # 타겟 네트워크 업데이트
+        if (game + 1) % TARGET_UPDATE_FREQUENCY == 0:
+            agent.update_target_network()
+            
+        # Epsilon 감소
+        agent.decay_epsilon()
+        
+        # 통계 기록
         final_score = info.get("total_game_score", 0)
+        avg_loss = np.mean(game_losses) if game_losses else 0
+        
         all_game_rounds.append(game_total_rounds)
-        avg_loss = game_total_loss / steps_in_game if steps_in_game > 0 else 0.0
         all_game_avg_loss.append(avg_loss)
         total_scores_per_game.append(final_score)
         
-        # 엡실론 감소
-        agent.decay_epsilon(EPSILON_DECAY)
-        
-        # 주기적으로 타겟 네트워크 업데이트
-        if (game + 1) % TARGET_UPDATE_FREQUENCY == 0:
-            agent.update_target_network()
-        
-        # 로깅
+        # 로그 출력
         if (game + 1) % LOG_INTERVAL == 0:
             avg_rounds = np.mean(all_game_rounds[-LOG_INTERVAL:])
             avg_score = np.mean(total_scores_per_game[-LOG_INTERVAL:])
             avg_loss_recent = np.mean(all_game_avg_loss[-LOG_INTERVAL:])
+            
             print(f"Game {game + 1}/{NUM_TOTAL_GAMES_TO_TRAIN} | "
-                  f"Rounds: {game_total_rounds} | "
-                  f"Score: {final_score} | "
                   f"Avg Rounds (last {LOG_INTERVAL}): {avg_rounds:.2f} | "
                   f"Avg Score (last {LOG_INTERVAL}): {avg_score:.2f} | "
                   f"Avg Loss (last {LOG_INTERVAL}): {avg_loss_recent:.4f} | "
@@ -161,8 +130,7 @@ def train():
         
         # 주기적으로 모델 저장
         if (game + 1) % SAVE_INTERVAL == 0:
-            os.makedirs(OUTPUT_DIR, exist_ok=True)
-            agent.save(f"{OUTPUT_DIR}/dqn_flip7_game_{game + 1}.pth")
+            agent.save(f"{CHECKPOINTS_DIR}/dqn_flip7_game_{game + 1}.pth")
     
     # ========================================================================
     # TRAINING 완료

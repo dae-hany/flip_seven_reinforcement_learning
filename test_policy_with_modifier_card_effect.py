@@ -3,116 +3,22 @@
 # 6종류의 수정자 카드(+2, +4, +6, +8, +10, x2)가 Q-value에 미치는 영향을 분석합니다.
 # 동일한 기본 손패에 서로 다른 수정자를 추가하여 정책 변화를 관찰합니다.
 #
+
 import os
 # OpenMP 중복 라이브러리 충돌 방지
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import numpy as np
-import collections
-from typing import Dict, Any
 import matplotlib.pyplot as plt
+from typing import Dict, Any
 
-from flip_seven_env import FlipSevenCoreEnv, CARD_TO_IDX, MODIFIER_TO_IDX, NUMBER_CARD_TYPES, MODIFIER_CARD_TYPES
+from flip_seven_env import CARD_TO_IDX, MODIFIER_TO_IDX, MODIFIER_CARD_TYPES
+from agent import DQNAgent
+import config
 
 # Device configuration
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-# ============================================================================
-# Q-NETWORK ARCHITECTURE
-# ============================================================================
-class QNetwork(nn.Module):
-    """
-    Q-Network that processes the Dict observation space from FlipSevenCoreEnv.
-    """
-    
-    def __init__(
-        self,
-        hand_numbers_dim: int = 13,
-        hand_modifiers_dim: int = 6,
-        deck_composition_dim: int = 19,
-        score_dim: int = 1,
-        hidden_dim: int = 128
-    ):
-        super(QNetwork, self).__init__()
-        
-        # Separate processing layers for each observation component
-        self.hand_numbers_net = nn.Sequential(
-            nn.Linear(hand_numbers_dim, 32),
-            nn.ReLU()
-        )
-        
-        self.hand_modifiers_net = nn.Sequential(
-            nn.Linear(hand_modifiers_dim, 16),
-            nn.ReLU()
-        )
-        
-        self.deck_composition_net = nn.Sequential(
-            nn.Linear(deck_composition_dim, 64),
-            nn.ReLU()
-        )
-        
-        self.score_net = nn.Sequential(
-            nn.Linear(score_dim, 8),
-            nn.ReLU()
-        )
-        
-        concat_dim = 32 + 16 + 64 + 8  # = 120
-        
-        # Shared MLP layers
-        self.shared_net = nn.Sequential(
-            nn.Linear(concat_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 2)  # Output: Q(s, Stay), Q(s, Hit)
-        )
-    
-    def forward(self, obs_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
-        hand_numbers_feat = self.hand_numbers_net(obs_dict["current_hand_numbers"])
-        hand_modifiers_feat = self.hand_modifiers_net(obs_dict["current_hand_modifiers"])
-        deck_composition_feat = self.deck_composition_net(obs_dict["deck_composition"])
-        score_feat = self.score_net(obs_dict["total_game_score"])
-        
-        combined_feat = torch.cat([
-            hand_numbers_feat,
-            hand_modifiers_feat,
-            deck_composition_feat,
-            score_feat
-        ], dim=1)
-        
-        q_values = self.shared_net(combined_feat)
-        return q_values
-
-
-# ============================================================================
-# DQN AGENT
-# ============================================================================
-class DQNAgent:
-    """
-    DQN 에이전트 (모델 로드 및 Q-values 조회만 사용)
-    """
-    
-    def __init__(self, device: torch.device = DEVICE):
-        self.device = device
-        self.q_network = QNetwork().to(device)
-        self.target_network = QNetwork().to(device)
-        self.optimizer = optim.Adam(self.q_network.parameters())
-        self.epsilon = 0.0
-    
-    def load(self, filepath: str):
-        """저장된 Q-network 가중치를 불러옵니다."""
-        checkpoint = torch.load(filepath, map_location=self.device)
-        self.q_network.load_state_dict(checkpoint['q_network_state_dict'])
-        self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.q_network.eval()
-        self.target_network.eval()
-        print(f"모델을 {filepath} 에서 성공적으로 불러왔습니다.\n")
-
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -241,7 +147,14 @@ if __name__ == "__main__":
     
     # 1. 에이전트 로드
     agent = DQNAgent(device=DEVICE)
-    agent.load('./runs/dqn_flip7_final.pth')
+    # config.FINAL_MODEL_PATH 사용 권장
+    model_path = config.FINAL_MODEL_PATH if os.path.exists(config.FINAL_MODEL_PATH) else './runs/dqn_flip7_final.pth'
+    
+    if os.path.exists(model_path):
+        agent.load(model_path)
+    else:
+        print(f"Error: Model file not found at {model_path}")
+        exit(1)
     
     # 2. 전체 덱 생성
     full_deck = create_full_deck()
@@ -358,80 +271,8 @@ if __name__ == "__main__":
     
     # 저장
     import os
-    os.makedirs('./runs', exist_ok=True)
-    save_path = f'./runs/policy_analysis_modifier_effect_{base_hand}.png'
+    os.makedirs(config.PLOTS_DIR, exist_ok=True)
+    save_path = os.path.join(config.PLOTS_DIR, f'policy_analysis_modifier_effect_{base_hand}.png')
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     print(f"그래프 저장 완료: {save_path}")
-    print("=" * 70)
-    
-    # ========================================================================
-    # 7. 분석 요약
-    # ========================================================================
-    print("\n" + "=" * 70)
-    print("Analysis Summary")
-    print("=" * 70)
-    
-    # 수정자 없음 vs 각 수정자의 Q-value 차이 분석
-    baseline_q_stay = q_stay_values[0]
-    baseline_q_hit = q_hit_values[0]
-    
-    print(f"Baseline (수정자 없음): Q(Stay)={baseline_q_stay:.2f}, Q(Hit)={baseline_q_hit:.2f}")
-    print()
-    
-    # 각 수정자의 영향 분석
-    print("수정자별 Q-value 변화:")
-    for i in range(1, len(scenario_labels)):
-        label = scenario_labels[i]
-        score = effective_scores[i]
-        q_stay_change = q_stay_values[i] - baseline_q_stay
-        q_hit_change = q_hit_values[i] - baseline_q_hit
-        
-        print(f"  {label:6s} ({score:2d}pts): "
-              f"ΔQ(Stay)={q_stay_change:+7.2f}, ΔQ(Hit)={q_hit_change:+7.2f}")
-    
-    print()
-    
-    # Q(Stay) 증가 경향 분석
-    positive_stay_changes = sum(1 for i in range(1, len(q_stay_values)) 
-                                if q_stay_values[i] > baseline_q_stay)
-    
-    print(f"Q(Stay) 증가를 보인 수정자: {positive_stay_changes}/{len(scenario_labels)-1}")
-    
-    # x2 수정자의 특별한 영향 분석
-    x2_idx = scenario_labels.index('x2')
-    x2_q_stay = q_stay_values[x2_idx]
-    x2_score = effective_scores[x2_idx]
-    
-    print(f"\nx2 수정자 분석:")
-    print(f"  Effective Score: {base_score} → {x2_score} (2배 증가)")
-    print(f"  Q(Stay): {baseline_q_stay:.2f} → {x2_q_stay:.2f} (변화: {x2_q_stay - baseline_q_stay:+.2f})")
-    
-    if x2_q_stay > baseline_q_stay:
-        print("  ✓ x2 수정자의 2배 효과를 올바르게 인식하고 있습니다.")
-    else:
-        print("  ✗ x2 수정자의 효과를 제대로 인식하지 못하고 있습니다.")
-    
-    # 전체 결론
-    print()
-    if positive_stay_changes >= (len(scenario_labels) - 1) * 0.7:
-        print("✓ 결론: 에이전트가 수정자 카드의 효과를 성공적으로 학습했습니다!")
-        print("  수정자로 인한 점수 증가를 인식하고 Stay 선호도를 높입니다.")
-    else:
-        print("✗ 결론: 에이전트의 수정자 카드 이해가 불충분합니다.")
-        print("  수정자 카드의 점수 기여도를 명확히 학습하지 못했을 수 있습니다.")
-    
-    # 정책 일관성 분석
-    print("\n정책 일관성 분석:")
-    q_diff = [q_stay_values[i] - q_hit_values[i] for i in range(len(scenario_labels))]
-    
-    # 점수가 높을수록 Q(Stay) 선호도가 증가하는지 확인
-    sorted_by_score = sorted(zip(effective_scores, q_diff))
-    score_order_correct = all(sorted_by_score[i][1] <= sorted_by_score[i+1][1] 
-                              for i in range(len(sorted_by_score)-1))
-    
-    if score_order_correct:
-        print("  ✓ 점수가 높을수록 Stay 선호도가 일관되게 증가합니다.")
-    else:
-        print("  ⚠ 일부 수정자에서 예상과 다른 정책 변화가 관찰됩니다.")
-    
     print("=" * 70)

@@ -13,6 +13,7 @@ import numpy as np
 import collections
 from typing import Dict, List, Set
 import matplotlib.pyplot as plt
+import config
 
 from flip_seven_env import CARD_TO_IDX, MODIFIER_TO_IDX, NUMBER_CARD_TYPES, MODIFIER_CARD_TYPES
 
@@ -155,11 +156,7 @@ if __name__ == "__main__":
     
     # 1. Load Agent
     agent = DQNAgent(device=DEVICE)
-    model_path = './runs/dqn_flip7_final.pth'
-    if not os.path.exists(model_path):
-        print(f"Error: Model not found at {model_path}")
-        exit(1)
-    agent.load(model_path)
+    agent.load(config.FINAL_MODEL_PATH)
     
     # 2. Setup Hand and Score
     hand_nums = {10, 11, 12}
@@ -266,5 +263,5 @@ if __name__ == "__main__":
     autolabel(rects2)
     
     plt.tight_layout()
-    plt.savefig('./runs/policy_analysis_12_11_10.png')
-    print(f"\nPlot saved to ./runs/policy_analysis_12_11_10.png")
+    plt.savefig(config.POLICY_ANALYSIS_PLOT_PATH)
+    print(f"\nPlot saved to {config.POLICY_ANALYSIS_PLOT_PATH}")
