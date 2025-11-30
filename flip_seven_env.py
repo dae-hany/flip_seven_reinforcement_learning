@@ -29,8 +29,11 @@ class FlipSevenCoreEnv(gym.Env):
     """
     metadata = {'render_modes': ['human']}
 
-    def __init__(self):
+    def __init__(self, reward_type: str = 'non_linear'):
         super().__init__()
+        
+        # 보상 함수 타입 설정 ('linear' 또는 'non_linear')
+        self.reward_type = reward_type
 
         # 1. 행동 공간 정의
         # 0: Stay(라운드를 종료하고 점수를 획득)
@@ -155,24 +158,27 @@ class FlipSevenCoreEnv(gym.Env):
 
     def _shape_reward(self, real_score: int) -> float:
         """
-        비선형 보상 형성(Reward Shaping)을 적용합니다.
-        
-        목표: 높은 점수(40+)를 안전한 점수(20)보다 훨씬 가치있게 만들어
-              에이전트가 더 공격적으로 'Hit'하도록 유도합니다.
+        보상 형성(Reward Shaping)을 적용합니다.
         
         Args:
             real_score: 게임 규칙에 따른 실제 점수
         
         Returns:
             형성된 보상값 (RL 학습용)
-        
-        예시:
-            20점 -> (20/20)^2 = 1.0
-            40점 -> (40/20)^2 = 4.0  (실제로는 2배 점수지만 4배 보상)
-            60점 -> (60/20)^2 = 9.0  (실제로는 3배 점수지만 9배 보상)
         """
-        shaped_reward = (real_score / 20.0) ** 2
-        return shaped_reward
+        if self.reward_type == 'linear':
+            # Case 1: 선형 보상 (점수 그대로 보상)
+            return float(real_score)
+            
+        elif self.reward_type == 'non_linear':
+            # Case 2: 비선형 보상 (기존 방식)
+            # 목표: 높은 점수(40+)를 안전한 점수(20)보다 훨씬 가치있게 만들어
+            #       에이전트가 더 공격적으로 'Hit'하도록 유도합니다.
+            shaped_reward = (real_score / 20.0) ** 2
+            return shaped_reward
+            
+        else:
+            raise ValueError(f"Unknown reward_type: {self.reward_type}")
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         """

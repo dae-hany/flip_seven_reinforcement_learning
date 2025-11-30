@@ -27,20 +27,25 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # ============================================================================
 class QNetwork(nn.Module):
     """
-    Q-Network that processes the Dict observation space from FlipSevenCoreEnv.
+    FlipSevenCoreEnv의 관측 공간을 처리하는 큐 네트워크
+    (network.py와 동일한 구조 유지)
     """
-    
+
     def __init__(
         self,
         hand_numbers_dim: int = 13,
         hand_modifiers_dim: int = 6,
         deck_composition_dim: int = 19,
         score_dim: int = 1,
-        hidden_dim: int = 128
+        hidden_dim: int = 128,
+        action_space_size: int = 2,
+        use_dueling: bool = False
     ):
         super(QNetwork, self).__init__()
         
-        # Separate processing layers for each observation component
+        self.use_dueling = use_dueling
+        
+        # Dict 관측 공간의 4가지 요소 각각을 처리하기 위한 4개의 독립된 입력 레이어 정의
         self.hand_numbers_net = nn.Sequential(
             nn.Linear(hand_numbers_dim, 32),
             nn.ReLU()
@@ -61,16 +66,30 @@ class QNetwork(nn.Module):
             nn.ReLU()
         )
         
+        # 총 연결된 특징 차원 계산
         concat_dim = 32 + 16 + 64 + 8  # = 120
         
-        # Shared MLP layers
+        # 공유 MLP 레이어
         self.shared_net = nn.Sequential(
             nn.Linear(concat_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 2)  # Output: Q(s, Stay), Q(s, Hit)
+            nn.ReLU()
         )
+        
+        if self.use_dueling:
+            self.value_stream = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim // 2),
+                nn.ReLU(),
+                nn.Linear(hidden_dim // 2, 1)
+            )
+            self.advantage_stream = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim // 2),
+                nn.ReLU(),
+                nn.Linear(hidden_dim // 2, action_space_size)
+            )
+        else:
+            self.output_layer = nn.Linear(hidden_dim, action_space_size)
     
     def forward(self, obs_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         hand_numbers_feat = self.hand_numbers_net(obs_dict["current_hand_numbers"])
@@ -85,7 +104,15 @@ class QNetwork(nn.Module):
             score_feat
         ], dim=1)
         
-        q_values = self.shared_net(combined_feat)
+        shared_features = self.shared_net(combined_feat)
+        
+        if self.use_dueling:
+            value = self.value_stream(shared_features)
+            advantage = self.advantage_stream(shared_features)
+            q_values = value + (advantage - advantage.mean(dim=1, keepdim=True))
+        else:
+            q_values = self.output_layer(shared_features)
+        
         return q_values
 
 

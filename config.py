@@ -19,22 +19,22 @@ OUTPUT_DIR = f"./runs/{RUN_NAME}"  # 모델 체크포인트 및 로그 저장 �
 os.makedirs(OUTPUT_DIR, exist_ok=True)# ============================================================================
 # 훈련 하이퍼파라미터
 # ============================================================================
-NUM_TOTAL_GAMES_TO_TRAIN = 3000  # 학습할 전체 게임 수
+NUM_TOTAL_GAMES_TO_TRAIN = 1000  # 학습할 전체 게임 수
 TARGET_UPDATE_FREQUENCY = 10  # 타겟 네트워크를 N 게임마다 업데이트
 REPLAY_BUFFER_SIZE = 50000  # 리플레이 버퍼 크기
-BATCH_SIZE = 1024  # 배치 크기
+BATCH_SIZE = 64  # 배치 크기
 GAMMA = 0.99  # 할인률 (discount factor)
 LEARNING_RATE = 1e-4  # 학습률 (learning rate)
 EPSILON_START = 1.0  # 초기 epsilon (탐험 확률)
 EPSILON_END = 0.01  # 최소 epsilon (탐험 확률 하한)
-EPSILON_DECAY = 0.999  # 게임마다 epsilon 감소율
+EPSILON_DECAY = 0.995  # 게임마다 epsilon 감소율
 MIN_REPLAY_SIZE = 1000  # 이만큼의 transition이 쌓인 후 학습 시작
 
 # ============================================================================
 # DQN 고급 기능 설정
 # ============================================================================
-USE_DOUBLE_DQN = True  # Double DQN 사용 여부 (과대평가 문제 완화)
-USE_DUELING_NETWORK = True  # Dueling Network 아키텍처 사용 여부 (가치/이점 분리)
+USE_DOUBLE_DQN = False  # Double DQN 사용 여부 (과대평가 문제 완화)
+USE_DUELING_NETWORK = False  # Dueling Network 아키텍처 사용 여부 (가치/이점 분리)
 
 # ============================================================================
 # 네트워크 아키텍처 하이퍼파라미터
@@ -49,5 +49,5 @@ HIDDEN_DIM = 128  # 공유 MLP 은닉층 차원
 # 로깅 및 저장 설정
 # ============================================================================
 LOG_INTERVAL = 100  # N 게임마다 로그 출력
-SAVE_INTERVAL = 300  # N 게임마다 모델 저장
+SAVE_INTERVAL = 100  # N 게임마다 모델 저장
 EVAL_GAMES = 100  # 평가 시 플레이할 게임 수

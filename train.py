@@ -47,7 +47,7 @@ def train():
         torch.backends.cudnn.benchmark = True
         
     # 환경 및 에이전트 초기화
-    env = FlipSevenCoreEnv()
+    env = FlipSevenCoreEnv(reward_type='linear')
     agent = DQNAgent(device=DEVICE)
     
     # 학습 통계
@@ -179,6 +179,8 @@ def train():
     # 최종 모델 저장
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     agent.save(f"{OUTPUT_DIR}/dqn_flip7_final.pth")
+    # 테스트 스크립트를 위해 고정된 경로에도 저장
+    agent.save("./runs/dqn_flip7_final.pth")
     
     # ========================================================================
     # TRAINING 기록 저장 (데이터 & 플롯)
