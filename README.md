@@ -69,6 +69,10 @@ python simulate_6players.py
 # 5. 플레이어 수에 따른 성능 분석
 python simulate_player_scaling.py
 
+"""
+DQN Agent가 라운드가 종료되면 Daehan Player가 차례를 하는 것을 duel의 규칙으로 설정했습니다.
+아래 교차 턴 명령어는 실험용으로 사용되었습니다.
+"""
 # 6. 교차 턴(Alternating Turns) 1:1 대결 시뮬레이션
 python simulate_duel_alternately.py
 
@@ -78,6 +82,10 @@ python simulate_6players_alternately.py
 # 8. 교차 턴(Alternating Turns) 플레이어 수에 따른 성능 분석
 python simulate_player_scaling_alternately.py
 
+"""
+게임 도중 발생할 수 있는 여러 시나리오에 대해서, 
+DQN Agent가 올바른 Q-Value 값을 평가하고 있는지 확인하는 명령어입니다.
+"""
 # 9.1 시나리오 : card counting test
 python test_policy_with_card_counting_test.py
 
@@ -104,6 +112,9 @@ python test_policy_with_12_11_10.py
     * 카드를 서로 한 장씩 번갈아 뽑으며 라운드를 동시에 진행하는 것이 아닙니다.
 * **이미지 해석** : DQN Agent가 Daehan Player보다 근소 우위의 승률을 보이는 것을 확인할 수 있습니다.
 ![image](runs/latest_run/plots/duel_simulation_results.png)
+
+* **참고** : DQN Agent와 Daehan Player가 한 '턴'씩 번갈아가면서 플레이하더라도 결과에 큰 차이가 있지 않습니다. 한 '턴'씩 번갈아가면서 하더라도, DQN Agent가 근소 우위를 보입니다.  따라서, 앞으로의 분석은 한 플레이어가 **라운드가 종료되면** 다음 플레이어가 **라운드를 시작하는** 규칙 하에 진행하겠습니다.
+![image](runs/latest_run/plots/alternating_duel_results.png)
 
 ### 4.3 1:1에서 DQN Agent가 Daehan Player보다 근소 우위인 이유
 * **bash** : ```python analyze_superiority.py```
