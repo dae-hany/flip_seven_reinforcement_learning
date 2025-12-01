@@ -72,6 +72,9 @@ python simulate_player_scaling.py
 # 6. 교차 턴(Alternating Turns) 1:1 대결 시뮬레이션
 python simulate_duel_alternately.py
 
+# 7. 교차 턴(Alternating Turns) 6인 게임 시뮬레이션
+python simulate_6players_alternately.py
+
 # 7.1 시나리오 : card counting test
 python test_policy_with_card_counting_test.py
 
