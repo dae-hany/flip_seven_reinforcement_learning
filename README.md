@@ -130,7 +130,7 @@ python test_policy_with_12_11_10.py
 
 ### 4.4 6인 게임에서의 DQN Agent와 Daehan Player의 승률 비교
 * **bash** : ```python simulate_6players.py```
-* **설명** : DQN Agent가 Daehan Player 2명과, 현재 라운드 점수가 30점 미만이면 무조건 Hit하는 Conservative Player, 현재 라운드 점수가 15점 이상이면 무조건 Stay하는 Conservative Player와 함께 플레이합니다. 
+* **설명** : DQN Agent가 Daehan Player 2명과, 현재 라운드 점수가 30점 미만이면 무조건 Hit하는 Aggressive Player, 현재 라운드 점수가 15점 이상이면 무조건 Stay하는 Conservative Player와 함께 플레이합니다. 
 * **이미지 해석**
     * `Daehan 1`과 `Daehan 2`가 가장 높은 승률을 기록했습니다. 6인 게임에서는 덱이 매우 빠르게 소모되고 상황이 급변합니다. Daehan Player의 **카드 카운팅** 전략이 더욱 중요해졌습니다.
     * `DQN Agent`는 3위를 기록했습니다. Agent가 주로 1:1 상황이나 자신의 점수 극대화에 초점을 맞춰 학습했기 때문에, 6인 게임에서 성능이 떨어졌습니다. 
