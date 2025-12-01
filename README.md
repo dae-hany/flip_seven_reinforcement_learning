@@ -99,7 +99,9 @@ python test_policy_with_12_11_10.py
 
 ### 4.2 DQN Agent와 Daehan Player가 같이 플레이할 때, 승률 비교
 * **bash** : ```python simulate_duel.py```
-* **설명** : DQN Agent와 Daehan Player가 같은 카드 덱을 공유하며 한 턴씩 번갈아가며 플레이합니다. 
+* **설명** : DQN Agent와 Daehan Player가 같은 카드 덱을 공유하며 한 라운드씩 번갈아 가면서 게임을 플레이합니다.
+    * 즉, DQN Agent가 라운드 종료되면 Daehan Player가 라운드를 시작하는 방식입니다. 
+    * 카드를 서로 한 장씩 번갈아 뽑으며 라운드를 동시에 진행하는 것이 아닙니다.
 * **이미지 해석** : DQN Agent가 Daehan Player보다 근소 우위의 승률을 보이는 것을 확인할 수 있습니다.
 ![image](runs/latest_run/plots/duel_simulation_results.png)
 
