@@ -57,7 +57,7 @@ python test_env.py
 # 1. DQN Agent와 Daehan Player가 각각 혼자서 게임을 진행할 때의 성능 분석
 python simulate_solo.py
 
-# 2. 1:1 대결 시뮬레이션
+# 2. 1:1 대결 시뮬레이션(덱을 공유하지만, 한 플레이어의 라운드가 종료되면, 다른 플레이어가 라운드를 진행)
 python simulate_duel.py
 
 # 3. DQN Agent와 Daehan Player의 상세 우위 분석 (Bust Rate, Risk Taking 등)
@@ -75,13 +75,16 @@ python simulate_duel_alternately.py
 # 7. 교차 턴(Alternating Turns) 6인 게임 시뮬레이션
 python simulate_6players_alternately.py
 
-# 7.1 시나리오 : card counting test
+# 8. 교차 턴(Alternating Turns) 플레이어 수에 따른 성능 분석
+python simulate_player_scaling_alternately.py
+
+# 9.1 시나리오 : card counting test
 python test_policy_with_card_counting_test.py
 
-# 7.2 시나리오 : modifier card test
+# 9.2 시나리오 : modifier card test
 python test_policy_with_modifier_card_effect.py
 
-# 7.3 시나리오 : high risk test
+# 9.3 시나리오 : high risk test
 python test_policy_with_12_11_10.py
 ```
 
