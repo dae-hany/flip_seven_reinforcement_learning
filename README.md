@@ -69,13 +69,16 @@ python simulate_6players.py
 # 5. 플레이어 수에 따른 성능 분석
 python simulate_player_scaling.py
 
-# 6.1 시나리오 : card counting test
+# 6. 교차 턴(Alternating Turns) 1:1 대결 시뮬레이션
+python simulate_duel_alternately.py
+
+# 7.1 시나리오 : card counting test
 python test_policy_with_card_counting_test.py
 
-# 6.2 시나리오 : modifier card test
+# 7.2 시나리오 : modifier card test
 python test_policy_with_modifier_card_effect.py
 
-# 6.3 시나리오 : high risk test
+# 7.3 시나리오 : high risk test
 python test_policy_with_12_11_10.py
 ```
 
